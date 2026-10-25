@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ t.title }}</title>
+<style>
+  :root { --bg: #f5f1e8; --card: #fffdf8; --ink: #262c38; --soft: #6e7480; --line: #e2dbcd; --accent: #e8913a; --ok: #3f9c7a; --bad: #c95454; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #15181e; --card: #1f232b; --ink: #f1ece2; --soft: #a3a69f; --line: #333843; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 28px; margin: 0 0 4px; } h2 { font-size: 19px; margin: 0 0 14px; }
+  .sub { color: var(--soft); margin: 0 0 22px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 18px; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .grid { display: grid; grid-template-columns: 180px 1fr; gap: 10px 16px; align-items: center; }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+  label.inline { display: inline-flex; gap: 6px; align-items: center; margin-right: 10px; }
+  input[type=text], input[type=time], input[type=number], select { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); width: 100%; }
+  input[type=time] { width: auto; }
+  button { font: inherit; padding: 9px 16px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .msg { padding: 10px 14px; border-radius: 10px; background: var(--card); border-left: 4px solid var(--accent); margin-bottom: 18px; }
+  .status b.ok { color: var(--ok); } .status b.bad { color: var(--bad); }
+  img.preview { width: 100%; border-radius: 10px; border: 1px solid var(--line); display: block; }
+  table { width: 100%; border-collapse: collapse; } td, th { padding: 6px 4px; text-align: left; vertical-align: top; } th { color: var(--soft); font-weight: 500; font-size: 14px; }
+  td input[type=text] { min-width: 120px; }
+  pre { margin: 0; font-size: 13px; white-space: pre-wrap; color: var(--soft); max-height: 320px; overflow: auto; }
+  .hint { color: var(--soft); font-size: 14px; }
+  ol.steps { margin: 0; padding-left: 0; list-style: none; }
+  ol.steps > li { padding: 12px 0; border-top: 1px solid var(--line); }
+  ol.steps > li:first-child { border-top: 0; }
+  .check { display: inline-block; width: 22px; font-weight: 700; } .check.done { color: var(--ok); } .check.todo { color: var(--soft); }
+  .results { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .results form { display: flex; gap: 10px; align-items: center; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .lang a { color: var(--soft); text-decoration: none; padding: 4px 8px; border-radius: 7px; font-weight: 600; }
+  .lang a.on { color: var(--ink); background: var(--card); border: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>{{ t.title }}</h1>
+    <p class="sub">{{ t.subtitle }}</p></div>
+    <nav class="lang"><a href="{{ url_for('set_lang', code='de') }}" class="{{ 'on' if lang == 'de' }}">DE</a><a href="{{ url_for('set_lang', code='en') }}" class="{{ 'on' if lang == 'en' }}">EN</a></nav>
+  </header>
+
+  {% if message %}<div class="msg">{{ message }}</div>{% endif %}
+
+  {% if not setup_done %}
+  <section class="card" id="setup">
+    <h2>{{ t.setup }}</h2>
+    <p class="hint">{{ t.setup_hint }}</p>
+    <ol class="steps">
+      <li><span class="check {{ 'done' if setup.tv else 'todo' }}">{{ '✓' if setup.tv else '1' }}</span> <b>{{ t.step1 }}</b>{% if cfg.tv_ip %} – {{ cfg.tv_ip }}{% endif %}
+        <div class="row" style="margin-top:8px"><button type="button" id="find-tv">{{ t.btn_find }}</button></div>
+        <div class="results" id="tv-results"></div></li>
+      <li><span class="check {{ 'done' if setup.paired else 'todo' }}">{{ '✓' if setup.paired else '2' }}</span> <b>{{ t.step2 }}</b>
+        <div class="hint">{{ t.step2_hint }}</div>
+        {% if cfg.tv_ip %}<form method="post" action="{{ url_for('pair') }}" style="margin-top:8px" onsubmit="this.querySelector('button').textContent={{ t.pair_wait|tojson|forceescape }}"><button class="primary">{{ t.btn_pair }}</button></form>{% endif %}</li>
+      <li><span class="check {{ 'done' if setup.place else 'todo' }}">{{ '✓' if setup.place else '3' }}</span> <b>{{ t.step3 }}</b>{% if cfg.weather.name %} – {{ cfg.weather.name }}{% endif %}
+        <div class="row" style="margin-top:8px"><input type="text" id="place-q" placeholder="{{ t.place_ph }}" style="max-width:320px"><button type="button" id="place-search">{{ t.btn_search }}</button></div>
+        <div class="results" id="place-results"></div></li>
+      <li><span class="check {{ 'done' if setup.calendar else 'todo' }}">{{ '✓' if setup.calendar else '4' }}</span> <b>{{ t.step4 }}</b>
+        <div class="hint">{{ t.step4_hint }}</div></li>
+    </ol>
+  </section>
+  {% endif %}
+
+  <section class="card status">
+    <h2>{{ t.status }}</h2>
+    <p id="tv">{{ t.tv_checking }}</p>
+    <p>{{ t.schedule }}: {% if cfg.schedule.enabled %}<b>{{ t.on }}</b>, {{ cfg.schedule.start }}–{{ cfg.schedule.end }} {{ t.oclock }}
+      ({% for i in cfg.schedule.days %}{{ t.day_names[i] }}{% if not loop.last %}, {% endif %}{% endfor %}){% else %}<b>{{ t.off }}</b>{% endif %}
+      · {{ t.last_shown }}: {{ state.shown_on or '–' }} · {{ t.restore_art }}: {{ state.restore_id or '–' }}</p>
+    <div class="row">
+      <form method="post" action="{{ url_for('make_preview') }}"><button>{{ t.btn_preview }}</button></form>
+      <form method="post" action="{{ url_for('show_now') }}"><button class="primary">{{ t.btn_show }}</button></form>
+      <form method="post" action="{{ url_for('restore_now') }}"><button>{{ t.btn_restore }}</button></form>
+      <form method="post" action="{{ url_for('pair') }}" onsubmit="this.querySelector('button').textContent={{ t.pair_wait|tojson|forceescape }}"><button title="{{ t.pair_tip }}">{{ t.btn_pair }}</button></form>
+      <form method="post" action="{{ url_for('restart') }}" style="margin-left:auto"><button title="{{ t.restart_tip }}">{{ t.btn_restart }}</button></form>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>{{ t.upload }}</h2>
+    <p class="hint">{{ t.upload_hint }}</p>
+    <form method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data" class="row">
+      <input type="file" name="image" accept="image/*" required>
+      <label class="inline"><input type="radio" name="mode" value="crop" checked> {{ t.crop }}</label>
+      <label class="inline"><input type="radio" name="mode" value="fit"> {{ t.fit }}</label>
+      <button class="primary">{{ t.btn_upload }}</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>{{ t.text }}</h2>
+    <p class="hint">{{ t.text_hint }}</p>
+    <form method="post" action="{{ url_for('text') }}">
+      <textarea name="text" rows="3" style="width:100%;font:inherit;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)" placeholder="{{ t.text_placeholder }}" required></textarea>
+      <div class="row" style="margin-top:10px">
+        <label class="inline"><input type="radio" name="theme" value="dark" checked> {{ t.dark }}</label>
+        <label class="inline"><input type="radio" name="theme" value="light"> {{ t.light }}</label>
+        <button class="primary">{{ t.btn_text }}</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>{{ t.demo }}</h2>
+    <p class="hint">{{ t.demo_hint }}</p>
+    <form method="post" action="{{ url_for('demo') }}" class="row">
+      <label class="inline"><input type="radio" name="lang" value="de" {{ 'checked' if lang == 'de' }}> {{ t.german }}</label>
+      <label class="inline"><input type="radio" name="lang" value="en" {{ 'checked' if lang == 'en' }}> {{ t.english }}</label>
+      <button name="target" value="preview">{{ t.btn_demo_preview }}</button>
+      <button class="primary" name="target" value="tv">{{ t.btn_demo_tv }}</button>
+    </form>
+  </section>
+
+  {% if has_preview %}
+  <section class="card">
+    <h2>{{ t.preview }}</h2>
+    <img class="preview" src="{{ url_for('preview_image') }}?t={{ range(100000)|random }}" alt="{{ t.preview_alt }}">
+  </section>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('save_settings') }}">
+  <section class="card">
+    <h2>{{ t.tv_schedule }}</h2>
+    <div class="grid">
+      <label for="tv_ip">{{ t.tv_ip }}</label><input type="text" id="tv_ip" name="tv_ip" value="{{ cfg.tv_ip }}" placeholder="192.168.1.50">
+      <label>{{ t.schedule }}</label>
+      <div class="row">
+        <label class="inline"><input type="checkbox" name="schedule_enabled" {% if cfg.schedule.enabled %}checked{% endif %}> {{ t.active }}</label>
+        {{ t.from }} <input type="time" name="start" value="{{ cfg.schedule.start }}"> {{ t.to }} <input type="time" name="end" value="{{ cfg.schedule.end }}"> {{ t.oclock }}
+      </div>
+      <label>{{ t.weekdays }}</label>
+      <div>{% for name in t.day_names %}<label class="inline"><input type="checkbox" name="day{{ loop.index0 }}" {% if loop.index0 in cfg.schedule.days %}checked{% endif %}> {{ name }}</label>{% endfor %}</div>
+      <label for="timezone">{{ t.timezone }}</label><input type="text" id="timezone" name="timezone" value="{{ cfg.timezone }}">
+      <label for="plan_lang">{{ t.plan_lang }}</label>
+      <select id="plan_lang" name="plan_lang" style="max-width:220px"><option value="en" {{ 'selected' if cfg.plan_lang == 'en' }}>English</option><option value="de" {{ 'selected' if cfg.plan_lang == 'de' }}>Deutsch</option></select>
+      <label>{{ t.background }}</label>
+      <div>
+        <label class="inline"><input type="radio" name="background" value="artwork" {% if cfg.background == 'artwork' %}checked{% endif %}> {{ t.bg_artwork }}</label>
+        <label class="inline"><input type="radio" name="background" value="default" {% if cfg.background != 'artwork' %}checked{% endif %}> {{ t.bg_default }}</label>
+      </div>
+      <label>{{ t.past_events }}</label>
+      <label class="inline"><input type="checkbox" name="dim_past_events" {% if cfg.dim_past_events %}checked{% endif %}> {{ t.grey_out }}</label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>{{ t.calendars }}</h2>
+    <p class="hint">{{ t.calendars_hint }}</p>
+    <table>
+      <tr><th>{{ t.col_name }}</th><th>{{ t.col_url }}</th><th>{{ t.col_color }}</th><th>{{ t.col_kind }}</th><th>{{ t.col_delete }}</th></tr>
+      {% for c in cfg.calendars + [{'name': '', 'url': '', 'color': 'blue', 'role': 'events'}] %}
+      <tr>
+        <td><input type="text" name="cal_name{{ loop.index0 }}" value="{{ c.name }}" placeholder="{% if loop.last %}{{ t.new_calendar }}{% endif %}"></td>
+        <td><input type="text" name="cal_url{{ loop.index0 }}" value="{{ c.url }}" placeholder="https://calendar.google.com/…/basic.ics"></td>
+        <td><select name="cal_color{{ loop.index0 }}">{% for col in colors %}<option value="{{ col }}" {% if c.color == col %}selected{% endif %}>{{ t.colors[col] }}</option>{% endfor %}</select></td>
+        <td><select name="cal_role{{ loop.index0 }}"><option value="events" {% if c.role != 'todos' %}selected{% endif %}>{{ t.kind_events }}</option><option value="todos" {% if c.role == 'todos' %}selected{% endif %}>{{ t.kind_todos }}</option></select></td>
+        <td>{% if not loop.last %}<input type="checkbox" name="cal_delete{{ loop.index0 }}">{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <input type="hidden" name="cal_count" value="{{ cfg.calendars|length }}">
+  </section>
+
+  <section class="card">
+    <h2>{{ t.weather_holidays }}</h2>
+    <div class="grid">
+      <label>{{ t.weather }}</label><label class="inline"><input type="checkbox" name="weather_enabled" {% if cfg.weather.enabled %}checked{% endif %}> {{ t.show_weather }}</label>
+      <label for="weather_name">{{ t.place }}</label><input type="text" id="weather_name" name="weather_name" value="{{ cfg.weather.name }}">
+      <label>{{ t.lat_lon }}</label><div class="row"><input type="number" step="0.0001" name="lat" value="{{ cfg.weather.lat }}" style="width:140px"><input type="number" step="0.0001" name="lon" value="{{ cfg.weather.lon }}" style="width:140px"></div>
+      <label>{{ t.holidays }}</label><div class="row">{{ t.country }}
+        <select name="hol_country" id="hol_country" style="width:110px"><option value="">–</option>{% for c in countries %}<option value="{{ c }}" {{ 'selected' if cfg.holidays.country == c }}>{{ c }}</option>{% endfor %}</select>
+        {{ t.region }} <select name="hol_subdiv" id="hol_subdiv" data-current="{{ cfg.holidays.subdiv }}" style="width:130px"><option value="">–</option></select>
+        <span class="hint">{{ t.holidays_hint }}</span></div>
+    </div>
+  </section>
+
+  <p><button class="primary">{{ t.btn_save }}</button></p>
+  </form>
+
+  <section class="card">
+    <h2>{{ t.log }}</h2>
+    <pre>{% for line in log %}{{ line }}
+{% else %}{{ t.log_empty }}{% endfor %}</pre>
+  </section>
+  <p class="hint" style="text-align:center">Weather data by <a href="https://open-meteo.com/" style="color:inherit">Open-Meteo.com</a> (CC BY 4.0)</p>
+</main>
+<script>
+  const T = {{ {'tv': t.tv, 'ok': t.reachable, 'bad': t.unreachable, 'unknown': t.unknown, 'art': t.art_mode, 'on': t.on, 'off': t.off, 'cur': t.current_image}|tojson }};
+  fetch('{{ url_for("status") }}').then(r => r.json()).then(s => {
+    const el = document.getElementById('tv');
+    el.innerHTML = s.ok
+      ? T.tv + ': <b class="ok">' + T.ok + '</b> · ' + T.art + ': ' + (s.art_mode === 'on' ? T.on : T.off) + ' · ' + T.cur + ': ' + s.current
+      : T.tv + ': <b class="bad">' + T.bad + '</b> (' + s.error + ')';
+  }).catch(() => { document.getElementById('tv').textContent = T.tv + ': ' + T.unknown; });
+
+  const W = {{ {'searching': t.searching, 'none': t.none_found, 'use': t.use, 'noresults': t.no_results}|tojson }};
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  function choices(box, items, action, fields) {
+    box.innerHTML = items.map(it => '<form method="post" action="' + action + '">'
+      + fields(it).map(([k, v]) => '<input type="hidden" name="' + k + '" value="' + esc(v) + '">').join('')
+      + '<button>' + W.use + '</button> ' + esc(it.label || (it.name + ' – ' + it.model + ' – ' + it.ip)) + '</form>').join('');
+  }
+  const find = document.getElementById('find-tv');
+  if (find) find.onclick = () => {
+    const box = document.getElementById('tv-results'); box.textContent = W.searching;
+    fetch('{{ url_for("discover") }}').then(r => r.json()).then(d => {
+      if (!d.tvs.length) { box.textContent = W.none; return; }
+      choices(box, d.tvs, '{{ url_for("set_tv") }}', tv => [['ip', tv.ip]]);
+    }).catch(() => { box.textContent = W.none; });
+  };
+  const search = document.getElementById('place-search');
+  if (search) search.onclick = () => {
+    const box = document.getElementById('place-results'); box.textContent = W.searching;
+    fetch('{{ url_for("geocode") }}?q=' + encodeURIComponent(document.getElementById('place-q').value)).then(r => r.json()).then(d => {
+      if (!d.results.length) { box.textContent = W.noresults; return; }
+      choices(box, d.results, '{{ url_for("set_place") }}', p => [['label', p.label], ['lat', p.lat], ['lon', p.lon], ['timezone', p.timezone || ''], ['country_code', p.country_code || '']]);
+    });
+  };
+  const country = document.getElementById('hol_country'), region = document.getElementById('hol_subdiv');
+  function loadRegions() {
+    if (!country.value) { region.innerHTML = '<option value="">–</option>'; return; }
+    fetch('{{ url_for("regions", country="XX") }}'.replace('XX', country.value)).then(r => r.json()).then(d => {
+      region.innerHTML = '<option value="">–</option>' + d.regions.map(r => '<option' + (r === region.dataset.current ? ' selected' : '') + '>' + esc(r) + '</option>').join('');
+    });
+  }
+  country.onchange = loadRegions; loadRegions();
+</script>
+</body>
+</html>
