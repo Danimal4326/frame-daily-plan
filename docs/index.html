@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frame Daily Plan</title>
+<meta name="description" content="A calm morning family planner for the Samsung The Frame TV, self-hosted with Docker.">
+<style>
+  :root { --bg: #f5f1e8; --card: #fffdf8; --ink: #262c38; --soft: #6e7480; --line: #e2dbcd; --accent: #e8913a; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #15181e; --card: #1f232b; --ink: #f1ece2; --soft: #a3a69f; --line: #333843; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.55 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 40px 16px 70px; }
+  h1 { font-size: 40px; margin: 0 0 6px; line-height: 1.15; } h2 { font-size: 24px; margin: 44px 0 12px; }
+  .lead { font-size: 20px; color: var(--soft); margin: 0 0 26px; }
+  img { width: 100%; border-radius: 12px; border: 1px solid var(--line); display: block; }
+  figure { margin: 22px 0; } figcaption { color: var(--soft); font-size: 14px; margin-top: 8px; text-align: center; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; } @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+  .card h3 { margin: 0 0 6px; font-size: 18px; } .card p { margin: 0; color: var(--soft); }
+  ul { padding-left: 22px; } li { margin: 4px 0; }
+  pre { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-size: 14px; }
+  .btn { display: inline-block; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; padding: 11px 20px; border-radius: 10px; margin-right: 10px; }
+  .btn.alt { background: var(--card); color: var(--ink); border: 1px solid var(--line); }
+  a { color: inherit; } footer { margin-top: 50px; color: var(--soft); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Frame Daily Plan</h1>
+  <p class="lead">A calm morning planner for the Samsung The Frame. Every morning the family's day appears in Art Mode instead of a painting. Afterwards your artwork comes back.</p>
+  <p><a class="btn" href="https://github.com/JustifyTechExpenses/frame-daily-plan">Code and install guide</a><a class="btn alt" href="#install">Quick install</a></p>
+
+  <figure><img src="plan-en.jpg" alt="The daily plan in Art Mode: today's events, tomorrow, to-dos, weather and a month calendar"><figcaption>The plan on the Frame (demo data)</figcaption></figure>
+
+  <h2>What it does</h2>
+  <div class="grid">
+    <div class="card"><h3>Your calendars</h3><p>Any iCal feed: Google Calendar, school calendars, a separate to-do calendar. Each one gets a colour.</p></div>
+    <div class="card"><h3>Weather and holidays</h3><p>Weather with a "what to wear" hint from Open-Meteo (no key). Public holidays for about 150 countries.</p></div>
+    <div class="card"><h3>Blends into the room</h3><p>The plan sits on a blurred copy of the artwork it replaces. Past events turn grey, and nothing is ever cut off.</p></div>
+    <div class="card"><h3>Never in the way</h3><p>It never interrupts TV. It only removes images it uploaded itself. No Samsung account, no cloud.</p></div>
+  </div>
+
+  <figure><img src="web-ui.png" alt="The web page with the setup steps, buttons and a preview"><figcaption>Set up and control everything in a web page (English or German)</figcaption></figure>
+
+  <figure><img src="message.jpg" alt="A large message on a calm dark background"><figcaption>Show a message, e.g. "Grandma picks you up at 4 pm today"</figcaption></figure>
+
+  <h2>What you need</h2>
+  <ul>
+    <li>A <b>Samsung The Frame</b> on your home network (tested on a 2017 model; newer ones should work, please report)</li>
+    <li>An <b>always-on machine with Docker</b>, e.g. a Synology NAS (Container Manager), a Raspberry Pi or a home server</li>
+    <li>Your calendars as <b>iCal links</b> (Google Calendar: "Secret address in iCal format")</li>
+  </ul>
+
+  <h2 id="install">Quick install</h2>
+  <p>Put this in a <code>docker-compose.yml</code> (on a Synology: Container Manager → Project → Create), start it, and open <code>http://&lt;your-server&gt;:8765</code>. The page walks you through finding the TV, allowing it, your town and your calendars.</p>
+<pre>services:
+  frame-daily-plan:
+    image: ghcr.io/justifytechexpenses/frame-daily-plan:latest
+    container_name: frame-daily-plan
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TZ: Europe/London
+    volumes:
+      - ./data:/data</pre>
+
+  <footer>
+    MIT licence · <a href="https://github.com/JustifyTechExpenses/frame-daily-plan">Source on GitHub</a> · Weather data by <a href="https://open-meteo.com/">Open-Meteo.com</a> (CC BY 4.0)<br>
+    Not affiliated with or endorsed by Samsung. "Samsung" and "The Frame" are trademarks of Samsung Electronics.
+  </footer>
+</main>
+</body>
+</html>
