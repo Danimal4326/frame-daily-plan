@@ -30,7 +30,7 @@ LABELS = {
                       'Oktober', 'November', 'Dezember'],
            'initials': 'MDMDFSS', 'today': 'Heute', 'tomorrow': 'Morgen', 'todos': 'Zu erledigen',
            'no_todos': 'Nichts zu erledigen', 'no_events': 'Keine Termine', 'more': '… und weitere',
-           'past': 'vorbei', 'night': 'bis {}° in der Nacht', 'now': 'jetzt {}°', 'high': 'bis {}° am Tag', 'all_day': 'Ganztägig',
+           'past': 'vorbei', 'night': 'bis {}° in der Nacht', 'now': 'jetzt {}°', 'day_sky': 'Heute: {}', 'high_low': 'Höchst {}° · Tiefst {}°', 'all_day': 'Ganztägig',
            'more_todos': '… und {} weitere', 'radar': 'Radar {}', 'rain_chance': '{} % Regen',
            'weekdays_short': ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
            'date': '{day}. {month}'},
@@ -39,7 +39,7 @@ LABELS = {
                       'October', 'November', 'December'],
            'initials': 'MTWTFSS', 'today': 'Today', 'tomorrow': 'Tomorrow', 'todos': 'To do',
            'no_todos': 'Nothing to do', 'no_events': 'No events', 'more': '… and more',
-           'past': 'done', 'night': 'down to {}° tonight', 'now': 'now {}°', 'high': 'up to {}° today', 'all_day': 'All day',
+           'past': 'done', 'night': 'down to {}° tonight', 'now': 'now {}°', 'day_sky': '{} today', 'high_low': 'High {}° · Low {}°', 'all_day': 'All day',
            'more_todos': '… and {} more', 'date': '{month} {day}', 'radar': 'Radar {}', 'rain_chance': '{}% rain',
            'weekdays_short': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']},
 }
@@ -222,14 +222,17 @@ def month(d, date, x, y, w):
 
 
 def temperatures(wx):
-    """The big number and the lines under it. The big one is today's high, or the temperature now
-    if chosen (or if there is no forecast); below it the other one, then the night's low."""
+    """The big number and the lines under it. Normally today's high, with the temperature now (if
+    known) and the night's low below. With the temperature now as the big number (chosen, or no
+    forecast): the day's sky ("Sunny today") and its high and low below."""
     now = wx.get('now')
     if now is not None and (wx.get('main') == 'now' or wx.get('max') is None):
-        big, small = now, [L['high'].format(wx['max'])] if wx.get('max') is not None else []
-    else:
-        big, small = wx['max'], [L['now'].format(now)] if now is not None else []
-    return big, small + ([L['night'].format(wx['min'])] if wx.get('min') is not None else [])
+        small = [L['day_sky'].format(wx['day_text'])] if wx.get('day_text') else []
+        if wx.get('max') is not None and wx.get('min') is not None:
+            small.append(L['high_low'].format(wx['max'], wx['min']))
+        return now, small
+    small = [L['now'].format(now)] if now is not None else []
+    return wx['max'], small + ([L['night'].format(wx['min'])] if wx.get('min') is not None else [])
 
 
 def list_height(d, items, w, scale):
@@ -324,8 +327,12 @@ def render(day, out, background_path=None):
         big, small = temperatures(wx)
         d.text((c3[0] + 340, M + 70), f'{big}°', font=font(150, 'DemiBold'), fill=CREAM)
         two = len(small) == 2  # two lines push the text below down a little
+        room = c3[1] - 70 - (c3[0] + 340)
         for i, line in enumerate(small):
-            d.text((c3[0] + 340, M + (235 if two else 250) + i * 65), line, font=font(54 if two else 58, 'Medium'), fill=SOFT)
+            size = 54 if two else 58
+            while size > 40 and d.textlength(line, font=font(size, 'Medium')) > room:  # e.g. "Thunderstorm with hail today"
+                size -= 2
+            d.text((c3[0] + 340, M + (235 if two else 250) + i * 65), line, font=font(size, 'Medium'), fill=SOFT)
         shift = 30 if two else 0
         d.text((c3[0] + 70, M + 380 + shift), wx['text'], font=font(66, 'Medium'), fill=CREAM)
         if wx.get('hint'):

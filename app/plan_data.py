@@ -203,8 +203,11 @@ def weather(cfg, day, w):
     # The next days, for the outlook: icon, high, low and chance of rain.
     outlook = [{k: o[k] for k in ('date', 'icon', 'max', 'min', 'rain')} for o in days[1:]]
     wx = {'icon': icon, 'max': tmax, 'min': tmin, 'text': text, 'hint': hint, 'outlook': outlook}
-    if sky is now and now.get('temp') is not None:
-        wx['now'] = now['temp']  # a station's reading, if there is one, replaces this
+    if sky is now:
+        # the day's sky goes under the big number ("Sunny today"), without the chance of rain
+        wx['day_text'] = today['text'][0 if cfg.get('plan_lang') == 'de' else 1] or w['changeable']
+        if now.get('temp') is not None:
+            wx['now'] = now['temp']  # a station's reading, if there is one, replaces this
     return wx
 
 

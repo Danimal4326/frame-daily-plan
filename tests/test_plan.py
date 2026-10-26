@@ -207,13 +207,15 @@ def test_pirate_weather_forecast(monkeypatch):
     now = plan_data.weather(dict(cfg, weather=dict(cfg['weather'], main='now')), datetime.date(2026, 10, 27),
                             plan_data.WORDS['en'])
     assert (now['icon'], now['text'], now['now'], now['hint']) == ('☁️', 'Mostly cloudy', 13.4, 'Bring a rain jacket')
+    assert now['day_text'] == 'Light rain'
 
 
 def test_big_temperature_choice():
     render.L = render.LABELS['en']
     wx = {'max': 66, 'min': 50, 'now': 58}
     assert render.temperatures(dict(wx, main='high')) == (66, ['now 58°', 'down to 50° tonight'])
-    assert render.temperatures(dict(wx, main='now')) == (58, ['up to 66° today', 'down to 50° tonight'])
+    assert render.temperatures(dict(wx, main='now')) == (58, ['High 66° · Low 50°'])
+    assert render.temperatures(dict(wx, main='now', day_text='Sunny')) == (58, ['Sunny today', 'High 66° · Low 50°'])
     assert render.temperatures(dict(wx, main='now', now=None)) == (66, ['down to 50° tonight'])  # no reading: the high
     assert render.temperatures({'max': None, 'min': None, 'now': 58}) == (58, [])  # station only
 
