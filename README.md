@@ -26,7 +26,7 @@ Art Mode is quiet, ad-free and always on the wall, so it's a good place for a fa
 - **Calendars**: any iCal feed, such as Google Calendar's secret address, Apple iCloud's public calendars or school calendars. Each calendar gets one of ten colours. A calendar can also be a "to-do" calendar, where every entry goes on the to-do list.
 - **Public holidays** for about 150 countries and their regions.
 - **Weather** from [Open-Meteo](https://open-meteo.com/), with no API key, in °C or °F.
-- **Your own weather station** (optional): the temperature "now", and "Raining now" while it rains. It reads from Home Assistant, MQTT, Ambient Weather or Weather Underground.
+- **Current conditions** (optional): the temperature "now", and "Raining now" while it rains, from Open-Meteo or your own weather station (Home Assistant, MQTT, Ambient Weather or Weather Underground).
 - **24-hour or 12-hour times** (picking a place in the US switches to °F and 12-hour times).
 - **Plan in English or German**, and a web page in English or German.
 - **Plan on your artwork**: the plan sits on a blurred copy of the picture it replaces. You can also use a calm built-in gradient.
@@ -105,7 +105,7 @@ The web page shows your private calendar links and weather-station keys (all sto
 - **"Search the network" finds nothing.** The container needs `network_mode: host`. Or enter the TV's IP address by hand.
 - **New calendar entries don't show up.** Google updates secret iCal feeds with a delay, sometimes up to a few hours.
 - **"Show plan now" fails.** The log shows how far it got ("Connected … (art API x)", "uploading …"). To test the TV on its own, run the TV library's own check: `docker exec -it frame-daily-plan python -m samsungframetv.diagnose <TV-IP> -t /data/tv-token.txt` (add `--upload some.jpg` to try an upload, which is deleted again).
-- **Weather station shows nothing.** Use **Test** under "Weather station". For MQTT, values older than 15 minutes are ignored.
+- **No "now" temperature.** Use **Test** under "Current conditions". For MQTT, values older than 15 minutes are ignored.
 - **The log** is at the bottom of the web page and in `data/frame-daily-plan.log`.
 
 ## Compatibility

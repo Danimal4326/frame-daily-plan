@@ -276,7 +276,8 @@ def save_settings():
     cfg['dim_past_events'] = 'dim_past_events' in f
     cfg['background'] = f.get('background', 'artwork')
     calendars = []
-    for i in range(int(f.get('cal_count', 0)) + 1):  # the extra row adds a new calendar
+    rows = sorted({int(k[7:]) for k in f if k.startswith('cal_url') and k[7:].isdigit()})  # incl. rows added on the page
+    for i in rows:
         url = f.get(f'cal_url{i}', '').strip()
         if url and f'cal_delete{i}' not in f:
             calendars.append({'name': f.get(f'cal_name{i}', '').strip() or 'Calendar', 'url': url,

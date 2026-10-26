@@ -73,3 +73,11 @@ def test_station_over_forecast_and_units():
     dry = plan_data.with_station(forecast, {'temp_c': 15.0, 'rain_rate_mm_h': 0}, w)
     assert dry['text'] == 'Partly cloudy'
     assert plan_data.with_station(None, {'temp_c': 15.0, 'rain_rate_mm_h': None}, w)['max'] == 15.0  # station only
+
+
+def test_open_meteo_current_conditions(monkeypatch):
+    monkeypatch.setattr(stations.requests, 'get', lambda url, **kw: Response(
+        {'current': {'temperature_2m': 21.3, 'precipitation': 0.2}, 'daily': {'precipitation_sum': [1.5]}}))
+    cfg = station_cfg('open_meteo')
+    cfg['weather'].update(lat=30.27, lon=-97.74)
+    assert stations.read(cfg) == pytest.approx({'temp_c': 21.3, 'rain_rate_mm_h': 0.8, 'rain_today_mm': 1.5})

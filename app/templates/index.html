@@ -166,7 +166,7 @@
     <table>
       <tr><th>{{ t.col_name }}</th><th>{{ t.col_url }}</th><th>{{ t.col_color }}</th><th>{{ t.col_kind }}</th><th>{{ t.col_delete }}</th></tr>
       {% for c in cfg.calendars + [{'name': '', 'url': '', 'color': 'blue', 'role': 'events'}] %}
-      <tr>
+      <tr{% if loop.last %} id="cal-blank"{% endif %}>
         <td><input type="text" name="cal_name{{ loop.index0 }}" value="{{ c.name }}" placeholder="{% if loop.last %}{{ t.new_calendar }}{% endif %}"></td>
         <td><input type="text" name="cal_url{{ loop.index0 }}" value="{{ c.url }}" placeholder="https://calendar.google.com/…/basic.ics"></td>
         <td><select name="cal_color{{ loop.index0 }}">{% for col in colors %}<option value="{{ col }}" {% if c.color == col %}selected{% endif %}>{{ t.colors[col] }}</option>{% endfor %}</select></td>
@@ -175,7 +175,7 @@
       </tr>
       {% endfor %}
     </table>
-    <input type="hidden" name="cal_count" value="{{ cfg.calendars|length }}">
+    <p><button type="button" id="add-calendar">{{ t.add_calendar }}</button></p>
   </section>
 
   <section class="card">
@@ -271,6 +271,15 @@
     });
   }
   country.onchange = loadRegions; loadRegions();
+
+  let calNext = {{ cfg.calendars|length + 1 }};
+  document.getElementById('add-calendar').onclick = () => {
+    const blank = document.getElementById('cal-blank'), row = blank.cloneNode(true);
+    row.removeAttribute('id');
+    row.querySelectorAll('[name]').forEach(el => { el.name = el.name.replace(/\d+$/, calNext); if (el.type === 'text') el.value = ''; });
+    blank.parentNode.appendChild(row);
+    calNext++;
+  };
 
   const source = document.getElementById('station_source');
   function showSource() {

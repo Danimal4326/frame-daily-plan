@@ -55,7 +55,7 @@ def test_settings_round_trip_units_time_and_station():
     assert cfg['station']['source'] == 'home_assistant' and cfg['station']['home_assistant']['token'] == 'abc'
     assert cfg['station']['mqtt']['port'] == 1884
     html = client().get('/').get_data(as_text=True)
-    assert 'Weather station' in html and 'sensor.outside_weather_temperature' in html
+    assert 'Current conditions' in html and 'Add calendar' in html and 'sensor.outside_weather_temperature' in html
 
 
 def test_us_place_defaults_to_fahrenheit_once():
@@ -75,3 +75,12 @@ def test_station_test_reports_errors_as_json():
     config.save(cfg)
     d = client().get('/station-test').get_json()
     assert d['ok'] is False and d['error']
+
+
+def test_any_number_of_calendars_in_one_save():
+    form = {'tv_ip': '', 'timezone': 'Europe/London', 'plan_lang': 'en', 'start': '07:00', 'end': '10:00'}
+    for i in (0, 1, 2, 3, 7):  # rows added on the page get the next free numbers, gaps are fine
+        form.update({f'cal_name{i}': f'Cal {i}', f'cal_url{i}': f'https://example.com/{i}.ics', f'cal_color{i}': 'teal'})
+    form['cal_url5'] = ''  # an added row left empty is ignored
+    client().post('/settings', data=form)
+    assert [c['name'] for c in config.load()['calendars']] == ['Cal 0', 'Cal 1', 'Cal 2', 'Cal 3', 'Cal 7']

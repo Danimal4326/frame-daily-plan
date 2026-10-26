@@ -15,7 +15,7 @@ import requests
 
 import config
 
-SOURCES = ['none', 'home_assistant', 'mqtt', 'ambient', 'wunderground']
+SOURCES = ['none', 'open_meteo', 'home_assistant', 'mqtt', 'ambient', 'wunderground']
 MAX_AGE = 15 * 60  # older MQTT values are ignored: the station is probably offline
 MM_PER_INCH = 25.4
 
@@ -42,6 +42,21 @@ def to_mm(value, unit):
 
 def _opt(value, convert, *args):
     return None if value is None else convert(value, *args)
+
+
+def open_meteo(cfg):
+    """No station: Open-Meteo's current conditions for the plan's place."""
+    loc = cfg['weather']
+    if loc.get('lat') is None or loc.get('lon') is None:
+        raise RuntimeError('no place set for the weather')
+    r = requests.get('https://api.open-meteo.com/v1/forecast', timeout=15, params={
+        'latitude': loc['lat'], 'longitude': loc['lon'], 'timezone': cfg['timezone'],
+        'current': 'temperature_2m,precipitation', 'daily': 'precipitation_sum', 'forecast_days': 1})
+    r.raise_for_status()
+    d = r.json()
+    # "precipitation" is the last 15 minutes; only whether it is raining matters for the plan
+    return {'temp_c': d['current']['temperature_2m'], 'rain_rate_mm_h': d['current']['precipitation'] * 4,
+            'rain_today_mm': d['daily']['precipitation_sum'][0]}
 
 
 def home_assistant(s):
@@ -142,6 +157,8 @@ def read(cfg):
     if source == 'mqtt':
         mqtt_sync(cfg)
         return mqtt_reading(st['mqtt'])
+    if source == 'open_meteo':
+        return open_meteo(cfg)
     fn = {'home_assistant': home_assistant, 'ambient': ambient, 'wunderground': wunderground}.get(source)
     return fn(st[source]) if fn else None
 
