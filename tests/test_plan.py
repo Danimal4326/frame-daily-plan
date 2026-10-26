@@ -3,7 +3,7 @@ import os
 import zoneinfo
 
 import icalendar
-from PIL import Image
+from PIL import Image, ImageDraw
 
 import jobs
 import plan_data
@@ -127,3 +127,49 @@ def test_us_english_plan():
                                    datetime.date(2026, 11, 26), plan_data.WORDS['en_US'])
     assert 'Thanksgiving' in us[0]['title']
     assert 'Practice math' in plan_data.demo(CFG, datetime.datetime(2026, 10, 27, 8, tzinfo=TZ), 'en_US')['todos']
+
+
+def test_layout_with_outlook_and_radar(tmp_path):
+    now = datetime.datetime(2026, 10, 27, 8, 0, tzinfo=TZ)
+    data = plan_data.demo(dict(CFG, units={'temperature': 'F'}), now, 'en')
+    assert [o['max'] for o in data['weather']['outlook']] == [63, 70, 68]  # °C demo values in °F
+    data['radar'] = {'image': Image.new('RGBA', render.RADAR_SIZE, (30, 60, 90, 255)), 'time': '07:05', 'credit': 'x'}
+    for d in (data, dict(data, weather=None, radar=None)):  # without weather: tomorrow keeps the right column
+        out = tmp_path / 'layout.jpg'
+        render.render(d, str(out))
+        assert Image.open(out).size == (3840, 2160)
+
+
+def test_center_split_keeps_room_for_tomorrow():
+    d = ImageDraw.Draw(Image.new('RGBA', (10, 10)))
+    ev = lambda n: [{'start': '08:00', 'title': f'Event {i}'} for i in range(n)]  # noqa: E731
+    render.L = render.LABELS['en']
+    top, bottom = render.M, render.H - render.M
+    split = render.split_center(d, ev(20), ev(5), 1040, top, bottom)
+    room = bottom - split - 50 - render.CENTER_HEAD - 30
+    assert room >= sum(render.event_heights(d, ev(2), 1040, render.TOMORROW_SCALE))
+    assert render.split_center(d, ev(1), ev(1), 1040, top, bottom) - top == (bottom - top) // 2  # quiet day: half each
+
+
+def test_radar_map_from_tiles(monkeypatch, tmp_path):
+    import io
+    import radar
+
+    def png(color, size):
+        buf = io.BytesIO()
+        Image.new('RGBA', (size, size), color).save(buf, 'PNG')
+        return buf.getvalue()
+    calls = []
+
+    def get(url):
+        calls.append(url)
+        if url == radar.INDEX:
+            return b'{"host": "https://tiles", "radar": {"past": [{"time": 1793045400, "path": "/v2/radar/x"}]}}'
+        return png((0, 0, 255, 128), 512) if 'tiles' in url else png((240, 240, 240, 255), 256)
+    monkeypatch.setattr(radar, '_get', get)
+    monkeypatch.setattr(radar, 'MAP_CACHE', str(tmp_path))
+    image, at = radar.fetch(41.85, -87.65, render.RADAR_SIZE, TZ)
+    assert image.size == render.RADAR_SIZE and at.tzinfo is TZ
+    map_calls = len([c for c in calls if 'openstreetmap' in c])
+    radar.fetch(41.85, -87.65, render.RADAR_SIZE, TZ)
+    assert len([c for c in calls if 'openstreetmap' in c]) == map_calls  # map tiles come from the cache

@@ -10,7 +10,11 @@ import holidays
 import icalendar
 import recurring_ical_events
 
+import radar
+import render
 import stations
+
+OUTLOOK_DAYS = 3
 
 TODO_PREFIXES = ('to-do:', 'todo:', 'task:', 'aufgabe:')
 
@@ -106,8 +110,12 @@ def weather(cfg, day, w):
     url = 'https://api.open-meteo.com/v1/forecast?' + urllib.parse.urlencode({
         'latitude': loc['lat'], 'longitude': loc['lon'], 'timezone': cfg['timezone'],
         'daily': 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max',
-        'start_date': day.isoformat(), 'end_date': day.isoformat()})
+        'start_date': day.isoformat(), 'end_date': (day + datetime.timedelta(days=OUTLOOK_DAYS)).isoformat()})
     d = json.load(urllib.request.urlopen(url, timeout=20))['daily']
+    # The next days, for the outlook: icon, high, low and chance of rain.
+    outlook = [{'date': d['time'][i], 'icon': WEATHER_CODES.get(d['weather_code'][i], ('⛅',))[0],
+                'max': d['temperature_2m_max'][i], 'min': d['temperature_2m_min'][i],
+                'rain': d['precipitation_probability_max'][i] or 0} for i in range(1, len(d['time']))]
     code, tmax, tmin = d['weather_code'][0], d['temperature_2m_max'][0], d['temperature_2m_min'][0]
     rain = d['precipitation_probability_max'][0] or 0
     entry = WEATHER_CODES.get(code)
@@ -124,7 +132,7 @@ def weather(cfg, day, w):
         hint = None
     if 30 <= rain < 50:
         text += f", {rain} % {w['rain']}"
-    return {'icon': icon, 'max': tmax, 'min': tmin, 'text': text, 'hint': hint}
+    return {'icon': icon, 'max': tmax, 'min': tmin, 'text': text, 'hint': hint, 'outlook': outlook}
 
 
 def with_station(wx, reading, w):
@@ -142,10 +150,12 @@ def with_station(wx, reading, w):
 def in_units(wx, cfg):
     """Weather is worked out in °C (the hints' thresholds); only the shown numbers are converted."""
     fahrenheit = (cfg.get('units') or {}).get('temperature') == 'F'
+    convert = lambda c: round(stations.c_to_f(c) if fahrenheit else c)  # noqa: E731
     wx = dict(wx)
     for key in ('max', 'min', 'now'):
         if wx.get(key) is not None:
-            wx[key] = round(stations.c_to_f(wx[key]) if fahrenheit else wx[key])
+            wx[key] = convert(wx[key])
+    wx['outlook'] = [dict(o, max=convert(o['max']), min=convert(o['min'])) for o in wx.get('outlook') or []]
     return wx
 
 
@@ -191,6 +201,12 @@ def build(cfg, now):
             data['weather'] = with_station(data['weather'], stations.read(cfg), w)
         except Exception as e:  # noqa: BLE001  nor without the station
             errors.append(f'Weather station: {e}')
+        if loc.get('radar', True):
+            try:
+                image, at = radar.fetch(loc['lat'], loc['lon'], render.RADAR_SIZE, tz)
+                data['radar'] = {'image': image, 'time': at.strftime('%H:%M'), 'credit': radar.CREDIT}
+            except Exception as e:  # noqa: BLE001
+                errors.append(f'Radar: {e}')
     if data['weather']:
         data['weather'] = in_units(data['weather'], cfg)
     for e in data['today'] + data['tomorrow']:
@@ -267,6 +283,9 @@ def demo(cfg, now, lang='en'):
                 past = bool(cfg.get('dim_past_events')) and (now.hour, now.minute) >= (h, m)
             out.append({'start': start, 'end': end, 'title': title, 'color': color, 'past': past})
         return out
+    days = [(now.date() + datetime.timedelta(days=i)).isoformat() for i in range(1, OUTLOOK_DAYS + 1)]
+    outlook = [{'date': day, 'icon': icon, 'max': tmax, 'min': tmin, 'rain': rain}
+               for day, (icon, tmax, tmin, rain) in zip(days, [('🌦️', 17, 10, 60), ('☀️', 21, 11, 0), ('⛅', 20, 13, 10)])]
     return {'date': now.date().isoformat(), 'lang': lang, 'time_format': cfg.get('time_format', '24h'),
             'today': entries(d['today'], True), 'tomorrow': entries(d['tomorrow'], False), 'todos': d['todos'],
-            'weather': in_units(d['weather'], cfg), 'errors': []}
+            'weather': in_units(dict(d['weather'], outlook=outlook), cfg), 'errors': []}

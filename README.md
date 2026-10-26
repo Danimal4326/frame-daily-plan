@@ -6,7 +6,7 @@ A calm morning planner for the **Samsung The Frame** TV. Each morning (by defaul
 
 - today's and tomorrow's events,
 - to-dos,
-- the weather with a "what to wear" hint,
+- the weather with a "what to wear" hint, the next 3 days and a rain radar map,
 - a month calendar.
 
 Afterwards it switches back to the artwork you had, and it deletes the plan image so nothing piles up.
@@ -26,6 +26,7 @@ Art Mode is quiet, ad-free and always on the wall, so it's a good place for a fa
 - **Calendars**: any iCal feed, such as Google Calendar's secret address, Apple iCloud's public calendars or school calendars. Each calendar gets one of ten colours. A calendar can also be a "to-do" calendar, where every entry goes on the to-do list.
 - **Public holidays** for about 150 countries and their regions.
 - **Weather** from [Open-Meteo](https://open-meteo.com/), with no API key, in °C or °F.
+- **3-day outlook** and a **rain radar map** around home ([RainViewer](https://www.rainviewer.com/) over [OpenStreetMap](https://www.openstreetmap.org/copyright)).
 - **Current conditions** (optional): the temperature "now", and "Raining now" while it rains, from Open-Meteo or your own weather station (Home Assistant, MQTT, Ambient Weather or Weather Underground).
 - **24-hour or 12-hour times** (picking a place in the US switches to °F and 12-hour times).
 - **Several schedules**, e.g. mornings every day and evenings on weekdays. Each time window shows a fresh plan.

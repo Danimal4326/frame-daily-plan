@@ -13,7 +13,7 @@ DEFAULTS = {
     'plan_lang': 'en',
     # role "events" shows entries as appointments, "todos" puts every entry on the to-do list
     'calendars': [],
-    'weather': {'enabled': True, 'name': '', 'lat': None, 'lon': None},
+    'weather': {'enabled': True, 'name': '', 'lat': None, 'lon': None, 'radar': True},
     'holidays': {'country': '', 'subdiv': ''},
     # time windows for the plan, e.g. a morning one every day and an evening one on weekdays
     'schedules': [{'name': 'Morning', 'enabled': True, 'start': '07:00', 'end': '10:00', 'days': [0, 1, 2, 3, 4, 5, 6]}],

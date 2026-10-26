@@ -265,6 +265,7 @@ def save_settings():
     cfg['schedules'] = schedules
     cfg['weather'] = {
         'enabled': 'weather_enabled' in f,
+        'radar': 'weather_radar' in f,
         'name': f.get('weather_name', '').strip(),
         'lat': float(f['lat']) if f.get('lat') else None,
         'lon': float(f['lon']) if f.get('lon') else None,

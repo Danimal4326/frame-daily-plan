@@ -31,7 +31,8 @@ LABELS = {
            'initials': 'MDMDFSS', 'today': 'Heute', 'tomorrow': 'Morgen', 'todos': 'Zu erledigen',
            'no_todos': 'Nichts zu erledigen', 'no_events': 'Keine Termine', 'more': '… und weitere',
            'past': 'vorbei', 'night': 'bis {}° in der Nacht', 'now': 'jetzt {}°', 'all_day': 'Ganztägig',
-           'more_todos': '… und {} weitere',
+           'more_todos': '… und {} weitere', 'radar': 'Radar {}', 'rain_chance': '{} % Regen',
+           'weekdays_short': ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
            'date': '{day}. {month}'},
     'en': {'weekdays': ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
            'months': ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
@@ -39,9 +40,15 @@ LABELS = {
            'initials': 'MTWTFSS', 'today': 'Today', 'tomorrow': 'Tomorrow', 'todos': 'To do',
            'no_todos': 'Nothing to do', 'no_events': 'No events', 'more': '… and more',
            'past': 'done', 'night': 'down to {}° tonight', 'now': 'now {}°', 'all_day': 'All day',
-           'more_todos': '… and {} more', 'date': '{month} {day}'},
+           'more_todos': '… and {} more', 'date': '{month} {day}', 'radar': 'Radar {}', 'rain_chance': '{}% rain',
+           'weekdays_short': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']},
 }
 LABELS['en_US'] = {**LABELS['en'], 'initials': 'SMTWTFS', 'first_weekday': calendar.SUNDAY}  # US weeks start on Sunday
+# Today and tomorrow share the middle column next to the weather, in slightly smaller type.
+TODAY_SCALE, TOMORROW_SCALE, CENTER_HEAD = 0.75, 0.7, 160
+RADAR_TOP = 1320  # the radar map fills the bottom of the right column
+RADAR_SIZE = (W - M - 2570, H - M - RADAR_TOP)
+
 L = LABELS['de']  # set per render
 TWELVE_HOUR = False  # set per render
 
@@ -115,26 +122,78 @@ def panel(layer, box, title=None):
         d.text((box[0] + 70, box[1] + 50), title, font=font(86, 'DemiBold'), fill=CREAM)
 
 
-def events(d, items, x, y, w, bottom, scale=1.0):
-    if not items:
-        d.text((x, y), L['no_events'], font=font(70, 'Medium'), fill=DIM)
-        return
+def event_heights(d, items, w, scale=1.0):
     s = lambda v: round(v * scale)  # noqa: E731
     tf = font(s(74), 'DemiBold')
-    for ev in items:
+    return [s(80) + len(wrap(d, ev['title'], tf, w - 60)) * s(92) + s(50) for ev in items]
+
+
+def events(d, items, x, y, w, bottom, scale=1.0):
+    s = lambda v: round(v * scale)  # noqa: E731
+    if not items:
+        d.text((x, y), L['no_events'], font=font(s(70), 'Medium'), fill=DIM)
+        return
+    tf = font(s(74), 'DemiBold')
+    more_h = s(80)  # room kept for "… and more" unless this is the last event
+    for i, (ev, need) in enumerate(zip(items, event_heights(d, items, w, scale))):
         lines = wrap(d, ev['title'], tf, w - 60)
-        need = s(80) + len(lines) * s(92) + s(50)
-        if y + need > bottom:
-            d.text((x, y), L['more'], font=font(64, 'Medium'), fill=DIM)
+        if y + need > (bottom if i == len(items) - 1 else bottom - more_h):
+            d.text((x, y), L['more'], font=font(s(64), 'Medium'), fill=DIM)
             return
         past = ev.get('past')
         color = COLORS['grey'] if past else COLORS.get(ev.get('color', 'green'), COLORS['green'])
         d.rounded_rectangle([x, y + 8, x + 14, y + need - s(50)], radius=7, fill=color)
         times = clock(ev.get('start', L['all_day'])) + (f" – {clock(ev['end'])}" if ev.get('end') else '')
         d.text((x + 50, y), times + (f"  ·  {L['past']}" if past else ''), font=font(s(62), 'Medium'), fill=DIM if past else SOFT)
-        for i, line in enumerate(lines):
-            d.text((x + 50, y + s(80) + i * s(92)), line, font=tf, fill=DIM if past else CREAM)
+        for n, line in enumerate(lines):
+            d.text((x + 50, y + s(80) + n * s(92)), line, font=tf, fill=DIM if past else CREAM)
         y += need
+
+
+def emoji(text, size):
+    """A colour emoji as an RGBA image (the font only has bitmaps at size 109)."""
+    icon = Image.new('RGBA', (140, 140), (0, 0, 0, 0))
+    ImageDraw.Draw(icon).text((0, 0), text, font=ImageFont.truetype(EMOJI, 109), embedded_color=True)
+    return icon.resize((size, size), Image.LANCZOS)
+
+
+def outlook(im, d, days, box):
+    """The next days side by side: weekday, icon, high and low, chance of rain if it is likely."""
+    x0, top, x1, bottom = box
+    cw = (x1 - x0 - 100) / len(days)
+    y = top + max(40, (bottom - top - 360) // 2)
+    for i, o in enumerate(days):
+        cx = round(x0 + 50 + cw * i + cw / 2)
+        day = datetime.date.fromisoformat(o['date'])
+        d.text((cx, y), L['weekdays_short'][day.weekday()], font=font(58, 'DemiBold'), fill=SOFT, anchor='mt')
+        im.alpha_composite(emoji(o['icon'], 130), (cx - 65, y + 85))
+        high, low = f"{o['max']}°", f"  {o['min']}°"
+        hf, lf = font(60, 'DemiBold'), font(60, 'Medium')
+        left = cx - (d.textlength(high, font=hf) + d.textlength(low, font=lf)) / 2
+        d.text((left, y + 240), high, font=hf, fill=CREAM)
+        d.text((left + d.textlength(high, font=hf), y + 240), low, font=lf, fill=SOFT)
+        if o.get('rain', 0) >= 30:
+            d.text((cx, y + 320), L['rain_chance'].format(o['rain']), font=font(48, 'Medium'), fill=COLORS['blue'], anchor='mt')
+
+
+def radar_map(im, radar, box):
+    """The radar picture with rounded corners, a dot for home, its time and the map credits."""
+    x0, y0, x1, y1 = box
+    w, h = x1 - x0, y1 - y0
+    pic = radar['image'].crop((0, 0, w, h))
+    mask = Image.new('L', (w, h), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, w - 1, h - 1], radius=48, fill=255)
+    im.paste(pic, (x0, y0), mask)
+    overlay = Image.new('RGBA', im.size, (0, 0, 0, 0))
+    o = ImageDraw.Draw(overlay)
+    cx, cy = x0 + w // 2, y0 + h // 2
+    o.ellipse([cx - 18, cy - 18, cx + 18, cy + 18], fill=ORANGE + (255,), outline=CREAM + (255,), width=6)
+    label = L['radar'].format(clock(radar['time']))
+    lf = font(50, 'DemiBold')
+    o.rounded_rectangle([x0 + 30, y1 - 110, x0 + 90 + o.textlength(label, font=lf), y1 - 30], radius=24, fill=(14, 18, 26, 190))
+    o.text((x0 + 60, y1 - 70), label, font=lf, fill=CREAM + (255,), anchor='lm')
+    o.text((x1 - 40, y1 - 30), radar['credit'], font=font(28, 'Medium'), fill=SOFT + (255,), anchor='rs')
+    im.alpha_composite(overlay)
 
 
 def month(d, date, x, y, w):
@@ -158,6 +217,17 @@ def month(d, date, x, y, w):
         y += 86
 
 
+def split_center(d, today, tomorrow, w, top, bottom):
+    """Where the Today panel ends: room for all of today if possible, but always for two of tomorrow's events."""
+    head, gap = CENTER_HEAD + 30, 50
+    today_need = head + (sum(event_heights(d, today, w, TODAY_SCALE)) if today else 110)
+    tomorrow_min = head + (sum(event_heights(d, tomorrow[:2], w, TOMORROW_SCALE)) if tomorrow else 110)
+    if len(tomorrow) > 2:
+        tomorrow_min += round(80 * TOMORROW_SCALE)  # the "… and more" line
+    total = bottom - top
+    return top + max(min(max(today_need, total // 2), total - gap - tomorrow_min), total // 3)
+
+
 def render(day, out, background_path=None):
     global L, TWELVE_HOUR
     L = LABELS.get(day.get('lang', 'de'), LABELS['de'])
@@ -165,15 +235,32 @@ def render(day, out, background_path=None):
     date = datetime.date.fromisoformat(day['date'])
     bg = background(background_path).convert('RGBA')
     layer = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    measure = ImageDraw.Draw(layer)
 
     c1, c2, c3 = (M, 1230), (1310, 2490), (2570, W - M)
     # Without a quote the panels use the strip at the bottom too.
     top, bottom = 560, 1880 if day.get('quote') else H - M
+    wx, radar = day.get('weather'), day.get('radar')
+    # With weather, the right column is weather, outlook and radar, and today and tomorrow share the
+    # middle one. Without any, tomorrow keeps the right column to itself.
+    side = bool(wx or radar)
+    today, tomorrow = day.get('today', []), day.get('tomorrow', [])
+    ew = c2[1] - c2[0] - 140
     panel(layer, (c1[0], top, c1[1], 1300))
     panel(layer, (c1[0], 1350, c1[1], bottom), day.get('todo_title', L['todos']))
-    panel(layer, (c2[0], M, c2[1], bottom), day.get('today_title', L['today']))
-    panel(layer, (c3[0], M, c3[1], 820))
-    panel(layer, (c3[0], 870, c3[1], bottom), L['tomorrow'])
+    if side:
+        split = split_center(measure, today, tomorrow, ew, M, bottom)
+        panel(layer, (c2[0], M, c2[1], split), day.get('today_title', L['today']))
+        panel(layer, (c2[0], split + 50, c2[1], bottom), L['tomorrow'])
+        panel(layer, (c3[0], M, c3[1], 820))
+        days = (wx or {}).get('outlook') or []
+        outlook_box = (c3[0], 870, c3[1], RADAR_TOP - 50 if radar else bottom)
+        if days:
+            panel(layer, outlook_box)
+    else:
+        panel(layer, (c2[0], M, c2[1], bottom), day.get('today_title', L['today']))
+        panel(layer, (c3[0], M, c3[1], 820))
+        panel(layer, (c3[0], 870, c3[1], bottom), L['tomorrow'])
     im = Image.alpha_composite(bg, layer)
     d = ImageDraw.Draw(im)
 
@@ -199,16 +286,16 @@ def render(day, out, background_path=None):
         d.text((c1[0] + 195, y + (80 - size) // 2), todo, font=font(size, 'Medium'), fill=CREAM)
         y += 125
 
-    events(d, day.get('today', []), c2[0] + 70, M + 200, c2[1] - c2[0] - 140, bottom - 40)
+    if side:
+        events(d, today, c2[0] + 70, M + CENTER_HEAD, ew, split - 30, TODAY_SCALE)
+        events(d, tomorrow, c2[0] + 70, split + 50 + CENTER_HEAD, ew, bottom - 30, TOMORROW_SCALE)
+    else:
+        events(d, today, c2[0] + 70, M + 200, ew, bottom - 40)
+        events(d, tomorrow, c3[0] + 70, 1070, c3[1] - c3[0] - 140, bottom - 40, scale=0.82)
 
     # Weather: icon, temperatures, one concrete hint.
-    wx = day.get('weather')
     if wx:
-        ef = ImageFont.truetype(EMOJI, 109)
-        icon = Image.new('RGBA', (140, 140), (0, 0, 0, 0))
-        ImageDraw.Draw(icon).text((0, 0), wx['icon'], font=ef, embedded_color=True)
-        icon = icon.resize((230, 230), Image.LANCZOS)
-        im.alpha_composite(icon, (c3[0] + 70, M + 70))
+        im.alpha_composite(emoji(wx['icon'], 230), (c3[0] + 70, M + 70))
         d.text((c3[0] + 340, M + 70), f"{wx['max']}°", font=font(150, 'DemiBold'), fill=CREAM)
         # The station's "now" (if any) above the night low; two lines push the text down a little.
         small = [L['now'].format(wx['now'])] if wx.get('now') is not None else []
@@ -220,8 +307,10 @@ def render(day, out, background_path=None):
         d.text((c3[0] + 70, M + 380 + shift), wx['text'], font=font(66, 'Medium'), fill=CREAM)
         if wx.get('hint'):
             d.text((c3[0] + 70, M + 480 + shift), wx['hint'], font=font(66, 'DemiBold'), fill=ORANGE)
-
-    events(d, day.get('tomorrow', []), c3[0] + 70, 1070, c3[1] - c3[0] - 140, bottom - 40, scale=0.82)
+    if side and days:
+        outlook(im, d, days, outlook_box)
+    if side and radar:
+        radar_map(im, radar, (c3[0], RADAR_TOP, c3[1], bottom))
 
     # Quote along the bottom.
     if day.get('quote'):
