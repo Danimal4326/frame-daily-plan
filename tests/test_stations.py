@@ -72,7 +72,8 @@ def test_station_over_forecast_and_units():
     assert plan_data.in_units(wx, {'units': {'temperature': 'C'}})['max'] == 19
     dry = plan_data.with_station(forecast, {'temp_c': 15.0, 'rain_rate_mm_h': 0}, w)
     assert dry['text'] == 'Partly cloudy'
-    assert plan_data.with_station(None, {'temp_c': 15.0, 'rain_rate_mm_h': None}, w)['max'] == 15.0  # station only
+    only = plan_data.with_station(None, {'temp_c': 15.0, 'rain_rate_mm_h': None}, w)  # no forecast: station only
+    assert only['now'] == 15.0 and only['max'] is None
 
 
 def test_open_meteo_current_conditions(monkeypatch):

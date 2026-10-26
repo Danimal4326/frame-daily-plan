@@ -30,7 +30,7 @@ LABELS = {
                       'Oktober', 'November', 'Dezember'],
            'initials': 'MDMDFSS', 'today': 'Heute', 'tomorrow': 'Morgen', 'todos': 'Zu erledigen',
            'no_todos': 'Nichts zu erledigen', 'no_events': 'Keine Termine', 'more': '… und weitere',
-           'past': 'vorbei', 'night': 'bis {}° in der Nacht', 'now': 'jetzt {}°', 'all_day': 'Ganztägig',
+           'past': 'vorbei', 'night': 'bis {}° in der Nacht', 'now': 'jetzt {}°', 'high': 'bis {}° am Tag', 'all_day': 'Ganztägig',
            'more_todos': '… und {} weitere', 'radar': 'Radar {}', 'rain_chance': '{} % Regen',
            'weekdays_short': ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
            'date': '{day}. {month}'},
@@ -39,7 +39,7 @@ LABELS = {
                       'October', 'November', 'December'],
            'initials': 'MTWTFSS', 'today': 'Today', 'tomorrow': 'Tomorrow', 'todos': 'To do',
            'no_todos': 'Nothing to do', 'no_events': 'No events', 'more': '… and more',
-           'past': 'done', 'night': 'down to {}° tonight', 'now': 'now {}°', 'all_day': 'All day',
+           'past': 'done', 'night': 'down to {}° tonight', 'now': 'now {}°', 'high': 'up to {}° today', 'all_day': 'All day',
            'more_todos': '… and {} more', 'date': '{month} {day}', 'radar': 'Radar {}', 'rain_chance': '{}% rain',
            'weekdays_short': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']},
 }
@@ -221,6 +221,17 @@ def month(d, date, x, y, w):
         y += 86
 
 
+def temperatures(wx):
+    """The big number and the lines under it. The big one is today's high, or the temperature now
+    if chosen (or if there is no forecast); below it the other one, then the night's low."""
+    now = wx.get('now')
+    if now is not None and (wx.get('main') == 'now' or wx.get('max') is None):
+        big, small = now, [L['high'].format(wx['max'])] if wx.get('max') is not None else []
+    else:
+        big, small = wx['max'], [L['now'].format(now)] if now is not None else []
+    return big, small + ([L['night'].format(wx['min'])] if wx.get('min') is not None else [])
+
+
 def list_height(d, items, w, scale):
     return sum(event_heights(d, items, w, scale)) if items else round(110 * scale)
 
@@ -310,11 +321,9 @@ def render(day, out, background_path=None):
     # Weather: icon, temperatures, one concrete hint.
     if wx:
         im.alpha_composite(emoji(wx['icon'], 230), (c3[0] + 70, M + 70))
-        d.text((c3[0] + 340, M + 70), f"{wx['max']}°", font=font(150, 'DemiBold'), fill=CREAM)
-        # The station's "now" (if any) above the night low; two lines push the text down a little.
-        small = [L['now'].format(wx['now'])] if wx.get('now') is not None else []
-        small += [L['night'].format(wx['min'])] if wx.get('min') is not None else []
-        two = len(small) == 2
+        big, small = temperatures(wx)
+        d.text((c3[0] + 340, M + 70), f'{big}°', font=font(150, 'DemiBold'), fill=CREAM)
+        two = len(small) == 2  # two lines push the text below down a little
         for i, line in enumerate(small):
             d.text((c3[0] + 340, M + (235 if two else 250) + i * 65), line, font=font(54 if two else 58, 'Medium'), fill=SOFT)
         shift = 30 if two else 0

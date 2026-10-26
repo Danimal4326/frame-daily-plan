@@ -224,6 +224,10 @@
     } %}
     <div class="grid">
       <label for="station_source">{{ t.source }}</label>
+      <label>{{ t.main_temp }}</label>
+      <div><label class="inline"><input type="radio" name="weather_main" value="high" {% if cfg.weather.main != 'now' %}checked{% endif %}> {{ t.main_high }}</label>
+        <label class="inline"><input type="radio" name="weather_main" value="now" {% if cfg.weather.main == 'now' %}checked{% endif %}> {{ t.main_now }}</label></div>
+      <label for="station_source">{{ t.source }}</label>
       <select id="station_source" name="station_source" style="max-width:320px">{% for src in sources %}<option value="{{ src }}" {{ 'selected' if cfg.station.source == src }}>{{ t['src_' + src] }}</option>{% endfor %}</select>
     </div>
     {% for src, fields in station_fields.items() %}

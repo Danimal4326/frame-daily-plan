@@ -179,9 +179,9 @@ def weather(cfg, day, w):
 
 def with_station(wx, reading, w):
     """The station's temperature now, and rain that is falling now, over the forecast."""
-    if not reading or (reading.get('temp_c') is None and reading.get('rain_rate_mm_h') is None):
-        return wx
-    wx = dict(wx) if wx else {'icon': '🌡️', 'max': reading.get('temp_c'), 'min': None, 'text': '', 'hint': None}
+    if not reading or (reading.get('temp_c') is None and (not wx or reading.get('rain_rate_mm_h') is None)):
+        return wx  # nothing to add (without a forecast, only a temperature makes a panel)
+    wx = dict(wx) if wx else {'icon': '🌡️', 'max': None, 'min': None, 'text': '', 'hint': None}  # station only
     if reading.get('temp_c') is not None:
         wx['now'] = reading['temp_c']
     if (reading.get('rain_rate_mm_h') or 0) > 0:
@@ -250,7 +250,7 @@ def build(cfg, now):
             except Exception as e:  # noqa: BLE001
                 errors.append(f'Radar: {e}')
     if data['weather']:
-        data['weather'] = in_units(data['weather'], cfg)
+        data['weather'] = dict(in_units(data['weather'], cfg), main=loc.get('main', 'high'))
     for e in data['today'] + data['tomorrow']:
         e.pop('end_dt', None)
         e.pop('sort', None)
@@ -330,4 +330,5 @@ def demo(cfg, now, lang='en'):
                for day, (icon, tmax, tmin, rain) in zip(days, [('🌦️', 17, 10, 60), ('☀️', 21, 11, 0), ('⛅', 20, 13, 10)])]
     return {'date': now.date().isoformat(), 'lang': lang, 'time_format': cfg.get('time_format', '24h'),
             'today': entries(d['today'], True), 'tomorrow': entries(d['tomorrow'], False), 'todos': d['todos'],
-            'weather': in_units(dict(d['weather'], outlook=outlook), cfg), 'errors': []}
+            'weather': in_units(dict(d['weather'], outlook=outlook, main=(cfg.get('weather') or {}).get('main', 'high')), cfg),
+            'errors': []}

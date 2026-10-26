@@ -201,3 +201,12 @@ def test_pirate_weather_forecast(monkeypatch):
     assert [(o['icon'], o['rain']) for o in wx['outlook']] == [('☀️', 0), ('🌥️', 10), ('⛈️', 80)]  # 3 days, not 4
     de = plan_data.weather(dict(cfg, plan_lang='de'), datetime.date(2026, 10, 27), plan_data.WORDS['de'])
     assert de['text'] == 'Leichter Regen'
+
+
+def test_big_temperature_choice():
+    render.L = render.LABELS['en']
+    wx = {'max': 66, 'min': 50, 'now': 58}
+    assert render.temperatures(dict(wx, main='high')) == (66, ['now 58°', 'down to 50° tonight'])
+    assert render.temperatures(dict(wx, main='now')) == (58, ['up to 66° today', 'down to 50° tonight'])
+    assert render.temperatures(dict(wx, main='now', now=None)) == (66, ['down to 50° tonight'])  # no reading: the high
+    assert render.temperatures({'max': None, 'min': None, 'now': 58}) == (58, [])  # station only
