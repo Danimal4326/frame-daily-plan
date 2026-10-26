@@ -192,7 +192,8 @@ def test_pirate_weather_forecast(monkeypatch):
 
     def urlopen(url, timeout):
         seen.append(url)
-        return io.BytesIO(json.dumps({'daily': {'data': days}}).encode())
+        return io.BytesIO(json.dumps({'daily': {'data': days}, 'currently': {
+            'icon': 'mostly-cloudy-night', 'temperature': 13.4}}).encode())
     monkeypatch.setattr(plan_data.urllib.request, 'urlopen', urlopen)
     cfg = dict(CFG, weather={'enabled': True, 'lat': 41.85, 'lon': -87.65, 'source': 'pirateweather', 'pirateweather_key': 'k1'})
     wx = plan_data.weather(cfg, datetime.date(2026, 10, 27), plan_data.WORDS['en'])
@@ -202,6 +203,11 @@ def test_pirate_weather_forecast(monkeypatch):
     de = plan_data.weather(dict(cfg, plan_lang='de'), datetime.date(2026, 10, 27), plan_data.WORDS['de'])
     assert de['text'] == 'Leichter Regen'
 
+    # With "now" as the big number, the sky is the one now, in its night version after dark.
+    now = plan_data.weather(dict(cfg, weather=dict(cfg['weather'], main='now')), datetime.date(2026, 10, 27),
+                            plan_data.WORDS['en'])
+    assert (now['icon'], now['text'], now['now'], now['hint']) == ('☁️', 'Mostly cloudy', 13.4, 'Bring a rain jacket')
+
 
 def test_big_temperature_choice():
     render.L = render.LABELS['en']
@@ -210,3 +216,8 @@ def test_big_temperature_choice():
     assert render.temperatures(dict(wx, main='now')) == (58, ['up to 66° today', 'down to 50° tonight'])
     assert render.temperatures(dict(wx, main='now', now=None)) == (66, ['down to 50° tonight'])  # no reading: the high
     assert render.temperatures({'max': None, 'min': None, 'now': 58}) == (58, [])  # station only
+
+
+def test_clear_night_is_not_sunny():
+    assert plan_data.at_night({'icon': '☀️', 'text': ('Sonnig', 'Sunny')}) == {'icon': '🌙', 'text': ('Klar', 'Clear')}
+    assert plan_data.at_night({'icon': '🌧️', 'text': ('Regen', 'Rain')})['icon'] == '🌧️'

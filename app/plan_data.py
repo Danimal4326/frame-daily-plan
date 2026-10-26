@@ -105,18 +105,37 @@ def holiday_entries(cfg, day, w):
             for n in cal.get(day).split(';')]
 
 
+# After dark the sky "now" gets night icons and words: no sun, "clear" instead of "sunny".
+NIGHT = {'☀️': ('🌙', 'Klar', 'Clear'), '🌤️': ('🌙', 'Überwiegend klar', 'Mostly clear'),
+         '⛅': ('☁️', None, None), '🌥️': ('☁️', None, None), '🌦️': ('🌧️', None, None)}
+
+
+def at_night(sky):
+    icon, de, en = NIGHT.get(sky['icon'], (sky['icon'], None, None))
+    return dict(sky, icon=icon, text=(de or sky['text'][0], en or sky['text'][1]))
+
+
 def open_meteo_days(cfg, day):
-    """Today and the outlook days from Open-Meteo: date, icon, (German, English) text, °C high and low, % rain."""
+    """Today and the outlook days from Open-Meteo: date, icon, (German, English) text, °C high and low, % rain.
+    Also the sky and temperature now."""
     loc = cfg['weather']
     url = 'https://api.open-meteo.com/v1/forecast?' + urllib.parse.urlencode({
         'latitude': loc['lat'], 'longitude': loc['lon'], 'timezone': cfg['timezone'],
         'daily': 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max',
+        'current': 'weather_code,is_day,temperature_2m',
         'start_date': day.isoformat(), 'end_date': (day + datetime.timedelta(days=OUTLOOK_DAYS)).isoformat()})
-    d = json.load(urllib.request.urlopen(url, timeout=20))['daily']
-    return [{'date': d['time'][i], 'icon': WEATHER_CODES.get(d['weather_code'][i], ('⛅',))[0],
+    data = json.load(urllib.request.urlopen(url, timeout=20))
+    d, c = data['daily'], data.get('current') or {}
+    days = [{'date': d['time'][i], 'icon': WEATHER_CODES.get(d['weather_code'][i], ('⛅',))[0],
              'text': WEATHER_CODES.get(d['weather_code'][i], (None, None, None))[1:],
              'max': d['temperature_2m_max'][i], 'min': d['temperature_2m_min'][i],
              'rain': d['precipitation_probability_max'][i] or 0} for i in range(len(d['time']))]
+    now = None
+    if c.get('weather_code') is not None:
+        code = WEATHER_CODES.get(c['weather_code'], ('⛅', None, None))
+        now = {'icon': code[0], 'text': code[1:], 'temp': c.get('temperature_2m')}
+        now = now if c.get('is_day', 1) else at_night(now)
+    return days, now
 
 
 # Pirate Weather icon names (its extended "pirate" set) → emoji and short texts, first match wins
@@ -138,28 +157,37 @@ def pirate_weather_days(cfg, day):
     """The same days from Pirate Weather (needs a free API key from pirateweather.net)."""
     loc = cfg['weather']
     url = (f"https://api.pirateweather.net/forecast/{urllib.parse.quote(loc['pirateweather_key'])}/{loc['lat']},{loc['lon']}?"
-           + urllib.parse.urlencode({'units': 'si', 'icon': 'pirate', 'exclude': 'currently,minutely,hourly,alerts'}))
-    data = json.load(urllib.request.urlopen(url, timeout=20))['daily']['data']
+           + urllib.parse.urlencode({'units': 'si', 'icon': 'pirate', 'exclude': 'minutely,hourly,alerts'}))
+    data = json.load(urllib.request.urlopen(url, timeout=20))
     tz, days = zoneinfo.ZoneInfo(cfg['timezone']), []
-    for d in data:
+
+    def sky(icon):
+        match = next((m for m in PIRATE_ICONS if m[0] in icon), ('', '⛅', None, None))
+        return {'icon': match[1], 'text': match[2:]}
+    for d in data['daily']['data']:
         date = datetime.datetime.fromtimestamp(d['time'], tz).date()
         if day <= date <= day + datetime.timedelta(days=OUTLOOK_DAYS):
-            match = next((m for m in PIRATE_ICONS if m[0] in d.get('icon', '')), ('', '⛅', None, None))
-            days.append({'date': date.isoformat(), 'icon': match[1], 'text': match[2:], 'max': d['temperatureHigh'],
+            days.append({'date': date.isoformat(), **sky(d.get('icon', '')), 'max': d['temperatureHigh'],
                          'min': d['temperatureLow'], 'rain': round((d.get('precipProbability') or 0) * 100)})
     if not days:
         raise RuntimeError('Pirate Weather sent no forecast for today')
-    return days
+    c, now = data.get('currently') or {}, None
+    if c.get('icon'):
+        now = dict(sky(c['icon']), temp=c.get('temperature'))
+        now = at_night(now) if 'night' in c['icon'] else now
+    return days, now
 
 
 FORECASTS = {'open_meteo': open_meteo_days, 'pirateweather': pirate_weather_days}
 
 
 def weather(cfg, day, w):
-    days = FORECASTS.get(cfg['weather'].get('source'), open_meteo_days)(cfg, day)
+    days, now = FORECASTS.get(cfg['weather'].get('source'), open_meteo_days)(cfg, day)
     today = days[0]
     tmax, tmin, rain = today['max'], today['min'], today['rain']
-    icon, text = today['icon'], today['text'][0 if cfg.get('plan_lang') == 'de' else 1] or w['changeable']
+    # With the temperature "now" as the big number, the sky is the one now too; the hint stays the day's.
+    sky = now if cfg['weather'].get('main') == 'now' and now else today
+    icon, text = sky['icon'], sky['text'][0 if cfg.get('plan_lang') == 'de' else 1] or w['changeable']
     if rain >= 50:
         hint = w['hint_rain']
     elif tmax < 12:
@@ -174,7 +202,10 @@ def weather(cfg, day, w):
         text += f", {rain} % {w['rain']}"
     # The next days, for the outlook: icon, high, low and chance of rain.
     outlook = [{k: o[k] for k in ('date', 'icon', 'max', 'min', 'rain')} for o in days[1:]]
-    return {'icon': icon, 'max': tmax, 'min': tmin, 'text': text, 'hint': hint, 'outlook': outlook}
+    wx = {'icon': icon, 'max': tmax, 'min': tmin, 'text': text, 'hint': hint, 'outlook': outlook}
+    if sky is now and now.get('temp') is not None:
+        wx['now'] = now['temp']  # a station's reading, if there is one, replaces this
+    return wx
 
 
 def with_station(wx, reading, w):
