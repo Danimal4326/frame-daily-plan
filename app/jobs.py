@@ -18,7 +18,7 @@ LOG_FILE = os.path.join(config.DATA, 'frame-daily-plan.log')
 PREVIEW = os.path.join(config.DATA, 'preview.jpg')
 LAST_IMAGE = os.path.join(config.DATA, 'last.jpg')
 ART_CACHE = os.path.join(config.DATA, 'art')
-RETRY_AFTER = 3 * 60
+RETRY_AFTER = 2 * 60  # a sleeping TV (e.g. before anyone is in the room) is retried every 2 minutes
 
 lock = threading.Lock()  # one TV conversation at a time (scheduler and buttons)
 recent = collections.deque(maxlen=200)

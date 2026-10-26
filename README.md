@@ -90,7 +90,7 @@ Use **Create preview** to see the plan without touching the TV, and **Show plan 
 - At the start time, the app remembers the current artwork, uploads a fresh plan and shows it. If the TV is in TV mode, the plan just waits.
 - At the end time, it switches back to that artwork and deletes the plan.
 - Anything you show by hand *inside* that window disappears at its end. Anything you show *outside* it stays until **Back to artwork**.
-- If the TV is unreachable (fully switched off), the app retries every few minutes.
+- If the TV is asleep or unreachable, the app retries every 2 minutes during the time window, so the plan appears soon after the TV wakes up.
 - Only images the app uploaded itself are ever deleted. Your photos and Samsung art are never touched.
 
 ## Security
