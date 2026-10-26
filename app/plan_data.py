@@ -105,21 +105,61 @@ def holiday_entries(cfg, day, w):
             for n in cal.get(day).split(';')]
 
 
-def weather(cfg, day, w):
+def open_meteo_days(cfg, day):
+    """Today and the outlook days from Open-Meteo: date, icon, (German, English) text, °C high and low, % rain."""
     loc = cfg['weather']
     url = 'https://api.open-meteo.com/v1/forecast?' + urllib.parse.urlencode({
         'latitude': loc['lat'], 'longitude': loc['lon'], 'timezone': cfg['timezone'],
         'daily': 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max',
         'start_date': day.isoformat(), 'end_date': (day + datetime.timedelta(days=OUTLOOK_DAYS)).isoformat()})
     d = json.load(urllib.request.urlopen(url, timeout=20))['daily']
-    # The next days, for the outlook: icon, high, low and chance of rain.
-    outlook = [{'date': d['time'][i], 'icon': WEATHER_CODES.get(d['weather_code'][i], ('⛅',))[0],
-                'max': d['temperature_2m_max'][i], 'min': d['temperature_2m_min'][i],
-                'rain': d['precipitation_probability_max'][i] or 0} for i in range(1, len(d['time']))]
-    code, tmax, tmin = d['weather_code'][0], d['temperature_2m_max'][0], d['temperature_2m_min'][0]
-    rain = d['precipitation_probability_max'][0] or 0
-    entry = WEATHER_CODES.get(code)
-    icon, text = (entry[0], entry[1 if cfg.get('plan_lang') == 'de' else 2]) if entry else ('⛅', w['changeable'])
+    return [{'date': d['time'][i], 'icon': WEATHER_CODES.get(d['weather_code'][i], ('⛅',))[0],
+             'text': WEATHER_CODES.get(d['weather_code'][i], (None, None, None))[1:],
+             'max': d['temperature_2m_max'][i], 'min': d['temperature_2m_min'][i],
+             'rain': d['precipitation_probability_max'][i] or 0} for i in range(len(d['time']))]
+
+
+# Pirate Weather icon names (its extended "pirate" set) → emoji and short texts, first match wins
+PIRATE_ICONS = [
+    ('thunder', '⛈️', 'Gewitter', 'Thunderstorm'), ('hail', '⛈️', 'Hagel', 'Hail'),
+    ('heavy-rain', '🌧️', 'Starker Regen', 'Heavy rain'), ('drizzle', '🌦️', 'Nieselregen', 'Drizzle'),
+    ('light-rain', '🌦️', 'Leichter Regen', 'Light rain'), ('rain', '🌧️', 'Regen', 'Rain'),
+    ('sleet', '🌨️', 'Schneeregen', 'Sleet'), ('mixed', '🌨️', 'Schneeregen', 'Rain and snow'),
+    ('heavy-snow', '❄️', 'Starker Schnee', 'Heavy snow'), ('snow', '🌨️', 'Schnee', 'Snow'),
+    ('flurries', '🌨️', 'Schneeschauer', 'Flurries'), ('fog', '🌫️', 'Neblig', 'Foggy'), ('mist', '🌫️', 'Dunstig', 'Misty'),
+    ('haze', '🌫️', 'Dunstig', 'Hazy'), ('smoke', '🌫️', 'Rauchig', 'Smoky'), ('wind', '💨', 'Windig', 'Windy'),
+    ('breezy', '💨', 'Windig', 'Breezy'), ('mostly-clear', '🌤️', 'Überwiegend sonnig', 'Mostly sunny'),
+    ('clear', '☀️', 'Sonnig', 'Sunny'), ('mostly-cloudy', '🌥️', 'Überwiegend bewölkt', 'Mostly cloudy'),
+    ('partly-cloudy', '⛅', 'Teilweise bewölkt', 'Partly cloudy'), ('cloudy', '☁️', 'Bewölkt', 'Cloudy'),
+]
+
+
+def pirate_weather_days(cfg, day):
+    """The same days from Pirate Weather (needs a free API key from pirateweather.net)."""
+    loc = cfg['weather']
+    url = (f"https://api.pirateweather.net/forecast/{urllib.parse.quote(loc['pirateweather_key'])}/{loc['lat']},{loc['lon']}?"
+           + urllib.parse.urlencode({'units': 'si', 'icon': 'pirate', 'exclude': 'currently,minutely,hourly,alerts'}))
+    data = json.load(urllib.request.urlopen(url, timeout=20))['daily']['data']
+    tz, days = zoneinfo.ZoneInfo(cfg['timezone']), []
+    for d in data:
+        date = datetime.datetime.fromtimestamp(d['time'], tz).date()
+        if day <= date <= day + datetime.timedelta(days=OUTLOOK_DAYS):
+            match = next((m for m in PIRATE_ICONS if m[0] in d.get('icon', '')), ('', '⛅', None, None))
+            days.append({'date': date.isoformat(), 'icon': match[1], 'text': match[2:], 'max': d['temperatureHigh'],
+                         'min': d['temperatureLow'], 'rain': round((d.get('precipProbability') or 0) * 100)})
+    if not days:
+        raise RuntimeError('Pirate Weather sent no forecast for today')
+    return days
+
+
+FORECASTS = {'open_meteo': open_meteo_days, 'pirateweather': pirate_weather_days}
+
+
+def weather(cfg, day, w):
+    days = FORECASTS.get(cfg['weather'].get('source'), open_meteo_days)(cfg, day)
+    today = days[0]
+    tmax, tmin, rain = today['max'], today['min'], today['rain']
+    icon, text = today['icon'], today['text'][0 if cfg.get('plan_lang') == 'de' else 1] or w['changeable']
     if rain >= 50:
         hint = w['hint_rain']
     elif tmax < 12:
@@ -132,6 +172,8 @@ def weather(cfg, day, w):
         hint = None
     if 30 <= rain < 50:
         text += f", {rain} % {w['rain']}"
+    # The next days, for the outlook: icon, high, low and chance of rain.
+    outlook = [{k: o[k] for k in ('date', 'icon', 'max', 'min', 'rain')} for o in days[1:]]
     return {'icon': icon, 'max': tmax, 'min': tmin, 'text': text, 'hint': hint, 'outlook': outlook}
 
 

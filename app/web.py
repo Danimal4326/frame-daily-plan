@@ -266,6 +266,8 @@ def save_settings():
     cfg['weather'] = {
         'enabled': 'weather_enabled' in f,
         'radar': 'weather_radar' in f,
+        'source': f.get('weather_source') if f.get('weather_source') in plan_data.FORECASTS else 'open_meteo',
+        'pirateweather_key': f.get('pirateweather_key', '').strip(),
         'name': f.get('weather_name', '').strip(),
         'lat': float(f['lat']) if f.get('lat') else None,
         'lon': float(f['lon']) if f.get('lon') else None,

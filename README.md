@@ -25,7 +25,7 @@ Art Mode is quiet, ad-free and always on the wall, so it's a good place for a fa
 
 - **Calendars**: any iCal feed, such as Google Calendar's secret address, Apple iCloud's public calendars or school calendars. Each calendar gets one of ten colours. A calendar can also be a "to-do" calendar, where every entry goes on the to-do list.
 - **Public holidays** for about 150 countries and their regions.
-- **Weather** from [Open-Meteo](https://open-meteo.com/), with no API key, in °C or °F.
+- **Weather** from [Open-Meteo](https://open-meteo.com/) (no API key) or [Pirate Weather](https://pirateweather.net/) (free API key), in °C or °F.
 - **3-day outlook** and a **rain radar map** around home ([RainViewer](https://www.rainviewer.com/) over [OpenStreetMap](https://www.openstreetmap.org/copyright)).
 - **Current conditions** (optional): the temperature "now", and "Raining now" while it rains, from Open-Meteo or your own weather station (Home Assistant, MQTT, Ambient Weather or Weather Underground).
 - **24-hour or 12-hour times** (picking a place in the US switches to °F and 12-hour times).

@@ -177,3 +177,27 @@ def test_radar_map_from_tiles(monkeypatch, tmp_path):
     map_calls = len([c for c in calls if 'openstreetmap' in c])
     radar.fetch(41.85, -87.65, render.RADAR_SIZE, TZ)
     assert len([c for c in calls if 'openstreetmap' in c]) == map_calls  # map tiles come from the cache
+
+
+def test_pirate_weather_forecast(monkeypatch):
+    import io
+    import json
+    start = datetime.datetime(2026, 10, 27, tzinfo=TZ)
+    days = [{'time': int((start + datetime.timedelta(days=i)).timestamp()), 'icon': icon, 'temperatureHigh': hi,
+             'temperatureLow': lo, 'precipProbability': p}
+            for i, (icon, hi, lo, p) in enumerate([('light-rain', 14.2, 8.1, 0.62), ('clear-day', 18, 9, 0),
+                                                   ('mostly-cloudy-day', 16, 10, 0.1), ('thunderstorm', 20, 12, 0.8),
+                                                   ('snow', 1, -3, 0.9)])]
+    seen = []
+
+    def urlopen(url, timeout):
+        seen.append(url)
+        return io.BytesIO(json.dumps({'daily': {'data': days}}).encode())
+    monkeypatch.setattr(plan_data.urllib.request, 'urlopen', urlopen)
+    cfg = dict(CFG, weather={'enabled': True, 'lat': 41.85, 'lon': -87.65, 'source': 'pirateweather', 'pirateweather_key': 'k1'})
+    wx = plan_data.weather(cfg, datetime.date(2026, 10, 27), plan_data.WORDS['en'])
+    assert 'pirateweather.net/forecast/k1/41.85,-87.65' in seen[0] and 'units=si' in seen[0]
+    assert (wx['icon'], wx['text'], wx['max'], wx['hint']) == ('🌦️', 'Light rain', 14.2, 'Bring a rain jacket')
+    assert [(o['icon'], o['rain']) for o in wx['outlook']] == [('☀️', 0), ('🌥️', 10), ('⛈️', 80)]  # 3 days, not 4
+    de = plan_data.weather(dict(cfg, plan_lang='de'), datetime.date(2026, 10, 27), plan_data.WORDS['de'])
+    assert de['text'] == 'Leichter Regen'

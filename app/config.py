@@ -13,7 +13,9 @@ DEFAULTS = {
     'plan_lang': 'en',
     # role "events" shows entries as appointments, "todos" puts every entry on the to-do list
     'calendars': [],
-    'weather': {'enabled': True, 'name': '', 'lat': None, 'lon': None, 'radar': True},
+    # forecast from "open_meteo" (no key) or "pirateweather" (free key from pirateweather.net)
+    'weather': {'enabled': True, 'name': '', 'lat': None, 'lon': None, 'radar': True, 'source': 'open_meteo',
+                'pirateweather_key': ''},
     'holidays': {'country': '', 'subdiv': ''},
     # time windows for the plan, e.g. a morning one every day and an evening one on weekdays
     'schedules': [{'name': 'Morning', 'enabled': True, 'start': '07:00', 'end': '10:00', 'days': [0, 1, 2, 3, 4, 5, 6]}],
