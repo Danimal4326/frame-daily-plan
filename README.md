@@ -28,7 +28,8 @@ Art Mode is quiet, ad-free and always on the wall, so it's a good place for a fa
 - **Weather** from [Open-Meteo](https://open-meteo.com/), with no API key, in °C or °F.
 - **Current conditions** (optional): the temperature "now", and "Raining now" while it rains, from Open-Meteo or your own weather station (Home Assistant, MQTT, Ambient Weather or Weather Underground).
 - **24-hour or 12-hour times** (picking a place in the US switches to °F and 12-hour times).
-- **Plan in English or German**, and a web page in English or German.
+- **Several schedules**, e.g. mornings every day and evenings on weekdays. Each time window shows a fresh plan.
+- **Plan and web page in German, British English or American English** (US: "sweater", weeks starting on Sunday).
 - **Plan on your artwork**: the plan sits on a blurred copy of the picture it replaces. You can also use a calm built-in gradient.
 - **Upload your own picture**: it is fitted to 3840×2160 and kept on the TV as your normal artwork.
 - **Show a message**: big text on a calm background, e.g. "Grandma picks you up at 4 pm today".
@@ -89,8 +90,8 @@ Use **Create preview** to see the plan without touching the TV, and **Show plan 
 
 ## How it behaves
 
-- At the start time, the app remembers the current artwork, uploads a fresh plan and shows it. If the TV is in TV mode, the plan just waits.
-- At the end time, it switches back to that artwork and deletes the plan.
+- At the start of each schedule's time window, the app remembers the current artwork, uploads a fresh plan and shows it. If the TV is in TV mode, the plan just waits.
+- At its end, it switches back to that artwork and deletes the plan.
 - Anything you show by hand *inside* that window disappears at its end. Anything you show *outside* it stays until **Back to artwork**.
 - If the TV is asleep or unreachable, the app retries every 2 minutes during the time window, so the plan appears soon after the TV wakes up.
 - Only images the app uploaded itself are ever deleted. Your photos and Samsung art are never touched.

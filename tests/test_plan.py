@@ -13,7 +13,8 @@ HERE = os.path.dirname(__file__)
 TZ = zoneinfo.ZoneInfo('Europe/London')
 CFG = {'timezone': 'Europe/London', 'plan_lang': 'en', 'calendars': [], 'dim_past_events': True,
        'weather': {'enabled': False}, 'holidays': {'country': '', 'subdiv': ''}, 'background': 'default',
-       'tv_ip': '192.168.1.50', 'schedule': {'enabled': True, 'start': '07:00', 'end': '10:00', 'days': [0, 1, 2, 3, 4]}}
+       'tv_ip': '192.168.1.50',
+       'schedules': [{'name': 'Morning', 'enabled': True, 'start': '07:00', 'end': '10:00', 'days': [0, 1, 2, 3, 4]}]}
 
 
 def cal():
@@ -46,7 +47,7 @@ def test_holidays_in_plan_language():
 
 def test_schedule_rules():
     d = lambda h, m=0, day=27: datetime.datetime(2026, 10, day, h, m, tzinfo=TZ)  # 27th = Tuesday
-    today = '2026-10-27'
+    today = '2026-10-27 07:00'  # the window the plan was shown in
     assert jobs._due(CFG, {}, d(6, 59)) is None
     assert jobs._due(CFG, {}, d(7)) == 'show'
     assert jobs._due(CFG, {'shown_on': today, 'restore_due': True}, d(8)) is None
@@ -59,7 +60,7 @@ def test_schedule_rules():
 
 def test_render_both_languages(tmp_path):
     now = datetime.datetime(2026, 10, 27, 8, 0, tzinfo=TZ)
-    for lang in ('en', 'de'):
+    for lang in ('en', 'de', 'en_US'):
         out = tmp_path / f'demo-{lang}.jpg'
         render.render(plan_data.demo(CFG, now, lang), str(out))
         assert Image.open(out).size == (3840, 2160)
@@ -102,3 +103,27 @@ def test_every_colour_has_a_tone_and_names():
     for c in config.COLORS:
         assert c in render.COLORS
         assert all(c in i18n.TEXT[lang]['colors'] for lang in i18n.TEXT)
+
+
+def test_morning_and_evening_windows():
+    evening = {'name': 'Evening', 'enabled': True, 'start': '18:00', 'end': '21:00', 'days': [0, 1, 2, 3, 4]}
+    weekend = {'name': 'Weekend', 'enabled': True, 'start': '09:00', 'end': '11:00', 'days': [5, 6]}
+    cfg = dict(CFG, schedules=CFG['schedules'] + [evening, weekend])
+    d = lambda h, day=27: datetime.datetime(2026, 10, day, h, tzinfo=TZ)  # 27th = Tuesday, 31st = Saturday
+    morning_shown = {'shown_on': '2026-10-27 07:00', 'restore_due': True}
+    assert jobs._due(cfg, morning_shown, d(8)) is None
+    assert jobs._due(cfg, morning_shown, d(12)) == 'restore'
+    assert jobs._due(cfg, {'shown_on': '2026-10-27 07:00', 'restore_due': False}, d(18)) == 'show'  # fresh evening plan
+    assert jobs._due(cfg, {'shown_on': '2026-10-27 18:00'}, d(19)) is None
+    assert jobs._due(cfg, {}, d(7, day=31)) is None and jobs._due(cfg, {}, d(9, day=31)) == 'show'
+    assert jobs.active_schedule(cfg, d(9, day=31))['name'] == 'Weekend'
+    assert jobs._due(dict(cfg, schedules=[dict(evening, enabled=False)]), {}, d(18)) is None
+
+
+def test_us_english_plan():
+    assert plan_data.words({'plan_lang': 'en_US'})['hint_cool'] == 'Bring a sweater or jacket'
+    assert render.LABELS['en_US']['initials'] == 'SMTWTFS'
+    us = plan_data.holiday_entries(dict(CFG, plan_lang='en_US', holidays={'country': 'US', 'subdiv': ''}),
+                                   datetime.date(2026, 11, 26), plan_data.WORDS['en_US'])
+    assert 'Thanksgiving' in us[0]['title']
+    assert 'Practice math' in plan_data.demo(CFG, datetime.datetime(2026, 10, 27, 8, tzinfo=TZ), 'en_US')['todos']

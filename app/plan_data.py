@@ -39,6 +39,9 @@ WORDS = {
 }
 
 
+WORDS['en_US'] = {**WORDS['en'], 'hint_cool': 'Bring a sweater or jacket'}
+
+
 def words(cfg):
     return WORDS.get(cfg.get('plan_lang', 'en'), WORDS['en'])
 
@@ -85,8 +88,8 @@ def holiday_calendar(cfg, year):
     subdiv = h.get('subdiv') or None
     cal = holidays.country_holidays(h['country'], subdiv=subdiv, years=year)
     # Use the plan language if the country's holiday data has it, otherwise its default names.
-    lang = cfg.get('plan_lang', 'en')
-    pick = next((code for code in (getattr(cal, 'supported_languages', ()) or ()) if code.split('_')[0] == lang), None)
+    lang, known = cfg.get('plan_lang', 'en'), getattr(cal, 'supported_languages', ()) or ()
+    pick = lang if lang in known else next((code for code in known if code.split('_')[0] == lang.split('_')[0]), None)
     return holidays.country_holidays(h['country'], subdiv=subdiv, years=year, language=pick) if pick else cal
 
 
@@ -235,6 +238,19 @@ DEMO = {
         'todos': ['Learn English vocabulary', 'Practise maths', 'Tidy up your room'],
         'weather': {'icon': '⛅', 'max': 19, 'min': 12, 'text': 'Partly cloudy', 'hint': 'Bring a jumper or jacket'},
     },
+}
+
+
+DEMO['en_US'] = {
+    **DEMO['en'],
+    'today': [('All day', None, 'Project week at school', 'blue'),
+              ('07:15', '07:45', 'Breakfast together', 'green'),
+              ('08:15', '14:00', 'School', 'blue'),
+              ('15:30', '16:30', 'Swim lesson', 'green'),
+              ('18:00', None, "Dinner at Grandma's", 'green'),
+              ('19:30', '19:45', 'Pack your backpack', 'green')],
+    'todos': ['Study spelling words', 'Practice math', 'Clean your room'],
+    'weather': {**DEMO['en']['weather'], 'hint': WORDS['en_US']['hint_cool']},
 }
 
 

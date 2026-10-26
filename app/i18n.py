@@ -1,4 +1,4 @@
-"""Texts of the web UI in German and English. The log stays German (it is a technical record)."""
+"""Texts of the web UI in German, British and American English."""
 
 TEXT = {
     'de': {
@@ -27,9 +27,9 @@ TEXT = {
         'text_placeholder': 'z. B. Heute holt dich Oma um 16 Uhr ab', 'dark': 'dunkel', 'light': 'hell', 'btn_text': 'Text anzeigen',
         'demo': 'Demo-Plan (zum Teilen)',
         'demo_hint': 'Erfundene Termine, Aufgaben und Wetter, ohne Namen und ohne Ort, z. B. für Fotos oder Videos. Wird wie ein Tagesplan angezeigt und mit „Kunstwerk zurück“ wieder entfernt.',
-        'german': 'Deutsch', 'english': 'Englisch', 'btn_demo_preview': 'Nur Vorschau', 'btn_demo_tv': 'Auf dem Fernseher anzeigen',
+        'btn_demo_preview': 'Nur Vorschau', 'btn_demo_tv': 'Auf dem Fernseher anzeigen',
         'preview': 'Vorschau', 'preview_alt': 'Vorschau des Tagesplans',
-        'tv_schedule': 'Fernseher und Zeitplan', 'tv_ip': 'IP-Adresse des Frame', 'active': 'aktiv', 'from': 'von', 'to': 'bis',
+        'tv_schedule': 'Fernseher und Plan', 'tv_ip': 'IP-Adresse des Frame', 'active': 'aktiv', 'from': 'von', 'to': 'bis',
         'weekdays': 'Wochentage', 'day_names': ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'], 'timezone': 'Zeitzone',
         'background': 'Hintergrund', 'bg_artwork': 'das Kunstwerk, das gerade läuft', 'bg_default': 'ruhiger Farbverlauf',
         'past_events': 'Vergangene Termine', 'grey_out': 'grau anzeigen',
@@ -37,6 +37,8 @@ TEXT = {
         'calendars_hint': 'iCal-Adressen aus Google Kalender (Einstellungen → „Privatadresse im iCal-Format“). „Aufgaben“: jeder Eintrag erscheint in der To-do-Liste. In Terminkalendern landen Einträge mit „To-do:“ am Anfang ebenfalls dort.',
         'col_name': 'Name', 'col_url': 'iCal-Adresse', 'col_color': 'Farbe', 'col_kind': 'Art', 'col_delete': 'Löschen',
         'new_calendar': 'Neuer Kalender', 'add_calendar': '+ Weiterer Kalender',
+        'schedules': 'Zeitpläne', 'new_schedule': 'z. B. Abend', 'add_schedule': '+ Weiterer Zeitplan',
+        'schedules_hint': 'In jedem Zeitfenster erscheint ein frischer Plan, danach kommt das Kunstwerk zurück, z. B. morgens an allen Tagen und abends nur unter der Woche. Überschneiden sich zwei Fenster, gilt das obere.',
         'colors': {'green': 'Grün', 'blue': 'Blau', 'teal': 'Türkis', 'purple': 'Lila', 'pink': 'Rosa', 'orange': 'Orange',
                    'yellow': 'Gelb', 'red': 'Rot', 'brown': 'Braun', 'grey': 'Grau'},
         'time_format': 'Uhrzeit', 'time_24h': '24 Stunden (19:30)', 'time_12h': '12 Stunden (7:30 PM)', 'units': 'Einheiten',
@@ -93,9 +95,9 @@ TEXT = {
         'text_placeholder': 'e.g. Grandma picks you up at 4 pm today', 'dark': 'dark', 'light': 'light', 'btn_text': 'Show message',
         'demo': 'Demo plan (for sharing)',
         'demo_hint': 'Made-up events, to-dos and weather, with no names and no location, e.g. for photos or videos. Shown like a daily plan and removed with “Back to artwork”.',
-        'german': 'German', 'english': 'English', 'btn_demo_preview': 'Preview only', 'btn_demo_tv': 'Show on the TV',
+        'btn_demo_preview': 'Preview only', 'btn_demo_tv': 'Show on the TV',
         'preview': 'Preview', 'preview_alt': 'Preview of the daily plan',
-        'tv_schedule': 'TV and schedule', 'tv_ip': "The Frame's IP address", 'active': 'active', 'from': 'from', 'to': 'to',
+        'tv_schedule': 'TV and plan', 'tv_ip': "The Frame's IP address", 'active': 'active', 'from': 'from', 'to': 'to',
         'weekdays': 'Weekdays', 'day_names': ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'], 'timezone': 'Time zone',
         'background': 'Background', 'bg_artwork': 'the artwork currently showing', 'bg_default': 'calm gradient',
         'past_events': 'Past events', 'grey_out': 'show in grey',
@@ -103,6 +105,8 @@ TEXT = {
         'calendars_hint': 'iCal addresses from Google Calendar (Settings → “Secret address in iCal format”). “To-dos”: every entry goes on the to-do list. In event calendars, entries starting with “To-do:” go there too.',
         'col_name': 'Name', 'col_url': 'iCal address', 'col_color': 'Colour', 'col_kind': 'Kind', 'col_delete': 'Delete',
         'new_calendar': 'New calendar', 'add_calendar': '+ Add calendar',
+        'schedules': 'Schedules', 'new_schedule': 'e.g. Evening', 'add_schedule': '+ Add schedule',
+        'schedules_hint': 'Each time window shows a fresh plan, then brings the artwork back, e.g. mornings every day and evenings on weekdays only. If two windows overlap, the upper one counts.',
         'colors': {'green': 'Green', 'blue': 'Blue', 'teal': 'Teal', 'purple': 'Purple', 'pink': 'Pink', 'orange': 'Orange',
                    'yellow': 'Yellow', 'red': 'Red', 'brown': 'Brown', 'grey': 'Grey'},
         'time_format': 'Time format', 'time_24h': '24-hour (19:30)', 'time_12h': '12-hour (7:30 PM)', 'units': 'Units',
@@ -133,6 +137,12 @@ TEXT = {
         'step_rest': 'Network', 'step_remote': 'Permission', 'step_art': 'Art Mode', 'step_api': 'Art API',
     },
 }
+
+
+# American English: the British texts with US wording and spelling
+TEXT['en_US'] = {**TEXT['en'], 'col_color': 'Color', 'grey_out': 'show in gray', 'place_ph': 'Town, e.g. Austin',
+                 'colors': {**TEXT['en']['colors'], 'grey': 'Gray'}}
+LANGS = [('de', 'DE', 'Deutsch'), ('en', 'UK', 'English (UK)'), ('en_US', 'US', 'English (US)')]  # code, short, name
 
 
 def texts(lang):

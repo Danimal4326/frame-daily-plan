@@ -44,7 +44,7 @@
   <header>
     <div><h1>{{ t.title }}</h1>
     <p class="sub">{{ t.subtitle }}</p></div>
-    <nav class="lang"><a href="{{ url_for('set_lang', code='de') }}" class="{{ 'on' if lang == 'de' }}">DE</a><a href="{{ url_for('set_lang', code='en') }}" class="{{ 'on' if lang == 'en' }}">EN</a></nav>
+    <nav class="lang">{% for code, short, name in langs %}<a href="{{ url_for('set_lang', code=code) }}" class="{{ 'on' if lang == code }}" title="{{ name }}">{{ short }}</a>{% endfor %}</nav>
   </header>
 
   {% if message %}<div class="msg">{{ message }}</div>{% endif %}
@@ -72,8 +72,9 @@
   <section class="card status">
     <h2>{{ t.status }}</h2>
     <p id="tv">{{ t.tv_checking }}</p>
-    <p>{{ t.schedule }}: {% if cfg.schedule.enabled %}<b>{{ t.on }}</b>, {{ cfg.schedule.start }}–{{ cfg.schedule.end }} {{ t.oclock }}
-      ({% for i in cfg.schedule.days %}{{ t.day_names[i] }}{% if not loop.last %}, {% endif %}{% endfor %}){% else %}<b>{{ t.off }}</b>{% endif %}
+    {% set active = cfg.schedules|selectattr('enabled')|list %}
+    <p>{{ t.schedule }}: {% for s in active %}<b>{{ s.name }}</b> {{ s.start }}–{{ s.end }} {{ t.oclock }}
+      ({% for i in s.days %}{{ t.day_names[i] }}{% if not loop.last %}, {% endif %}{% endfor %}){% if not loop.last %}; {% endif %}{% else %}<b>{{ t.off }}</b>{% endfor %}
       · {{ t.last_shown }}: {{ state.shown_on or '–' }} · {{ t.restore_art }}: {{ state.restore_id or '–' }}</p>
     <div class="row">
       <form method="post" action="{{ url_for('make_preview') }}"><button>{{ t.btn_preview }}</button></form>
@@ -112,8 +113,7 @@
     <h2>{{ t.demo }}</h2>
     <p class="hint">{{ t.demo_hint }}</p>
     <form method="post" action="{{ url_for('demo') }}" class="row">
-      <label class="inline"><input type="radio" name="lang" value="de" {{ 'checked' if lang == 'de' }}> {{ t.german }}</label>
-      <label class="inline"><input type="radio" name="lang" value="en" {{ 'checked' if lang == 'en' }}> {{ t.english }}</label>
+      {% for code, short, name in langs %}<label class="inline"><input type="radio" name="lang" value="{{ code }}" {{ 'checked' if lang == code }}> {{ name }}</label>{% endfor %}
       <button name="target" value="preview">{{ t.btn_demo_preview }}</button>
       <button class="primary" name="target" value="tv">{{ t.btn_demo_tv }}</button>
     </form>
@@ -131,16 +131,9 @@
     <h2>{{ t.tv_schedule }}</h2>
     <div class="grid">
       <label for="tv_ip">{{ t.tv_ip }}</label><input type="text" id="tv_ip" name="tv_ip" value="{{ cfg.tv_ip }}" placeholder="192.168.1.50">
-      <label>{{ t.schedule }}</label>
-      <div class="row">
-        <label class="inline"><input type="checkbox" name="schedule_enabled" {% if cfg.schedule.enabled %}checked{% endif %}> {{ t.active }}</label>
-        {{ t.from }} <input type="time" name="start" value="{{ cfg.schedule.start }}"> {{ t.to }} <input type="time" name="end" value="{{ cfg.schedule.end }}"> {{ t.oclock }}
-      </div>
-      <label>{{ t.weekdays }}</label>
-      <div>{% for name in t.day_names %}<label class="inline"><input type="checkbox" name="day{{ loop.index0 }}" {% if loop.index0 in cfg.schedule.days %}checked{% endif %}> {{ name }}</label>{% endfor %}</div>
       <label for="timezone">{{ t.timezone }}</label><input type="text" id="timezone" name="timezone" value="{{ cfg.timezone }}">
       <label for="plan_lang">{{ t.plan_lang }}</label>
-      <select id="plan_lang" name="plan_lang" style="max-width:220px"><option value="en" {{ 'selected' if cfg.plan_lang == 'en' }}>English</option><option value="de" {{ 'selected' if cfg.plan_lang == 'de' }}>Deutsch</option></select>
+      <select id="plan_lang" name="plan_lang" style="max-width:220px">{% for code, short, name in langs %}<option value="{{ code }}" {{ 'selected' if cfg.plan_lang == code }}>{{ name }}</option>{% endfor %}</select>
       <label for="time_format">{{ t.time_format }}</label>
       <select id="time_format" name="time_format" style="max-width:220px"><option value="24h" {{ 'selected' if cfg.time_format != '12h' }}>{{ t.time_24h }}</option><option value="12h" {{ 'selected' if cfg.time_format == '12h' }}>{{ t.time_12h }}</option></select>
       <label>{{ t.units }}</label>
@@ -158,6 +151,25 @@
       <label>{{ t.past_events }}</label>
       <label class="inline"><input type="checkbox" name="dim_past_events" {% if cfg.dim_past_events %}checked{% endif %}> {{ t.grey_out }}</label>
     </div>
+  </section>
+
+  <section class="card">
+    <h2>{{ t.schedules }}</h2>
+    <p class="hint">{{ t.schedules_hint }}</p>
+    <table>
+      <tr><th>{{ t.col_name }}</th><th>{{ t.active }}</th><th>{{ t.from }}</th><th>{{ t.to }}</th><th>{{ t.weekdays }}</th><th>{{ t.col_delete }}</th></tr>
+      {% for s in cfg.schedules + [{'name': '', 'enabled': True, 'start': '', 'end': '', 'days': [0, 1, 2, 3, 4, 5, 6]}] %}
+      <tr{% if loop.last %} id="sch-blank"{% endif %}>
+        <td><input type="text" name="sch{{ loop.index0 }}_name" value="{{ s.name }}" placeholder="{% if loop.last %}{{ t.new_schedule }}{% endif %}" style="min-width:100px"></td>
+        <td><input type="checkbox" name="sch{{ loop.index0 }}_enabled" {% if s.enabled %}checked{% endif %}></td>
+        <td><input type="time" name="sch{{ loop.index0 }}_start" value="{{ s.start }}"></td>
+        <td><input type="time" name="sch{{ loop.index0 }}_end" value="{{ s.end }}"></td>
+        <td>{% set row = loop.index0 %}{% for name in t.day_names %}<label class="inline" style="margin-right:4px"><input type="checkbox" name="sch{{ row }}_day{{ loop.index0 }}" {% if loop.index0 in s.days %}checked{% endif %}>{{ name }}</label>{% endfor %}</td>
+        <td>{% if not loop.last %}<input type="checkbox" name="sch{{ loop.index0 }}_delete">{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p><button type="button" id="add-schedule">{{ t.add_schedule }}</button></p>
   </section>
 
   <section class="card">
@@ -272,14 +284,21 @@
   }
   country.onchange = loadRegions; loadRegions();
 
-  let calNext = {{ cfg.calendars|length + 1 }};
-  document.getElementById('add-calendar').onclick = () => {
-    const blank = document.getElementById('cal-blank'), row = blank.cloneNode(true);
-    row.removeAttribute('id');
-    row.querySelectorAll('[name]').forEach(el => { el.name = el.name.replace(/\d+$/, calNext); if (el.type === 'text') el.value = ''; });
-    blank.parentNode.appendChild(row);
-    calNext++;
-  };
+  // "Add" buttons copy the empty last row; the row number in each field name is the part "pattern" matches.
+  function rowAdder(button, blankId, pattern, next) {
+    document.getElementById(button).onclick = () => {
+      const blank = document.getElementById(blankId), row = blank.cloneNode(true);
+      row.removeAttribute('id');
+      row.querySelectorAll('[name]').forEach(el => {
+        el.name = el.name.replace(pattern, m => m.replace(/\d+/, next));
+        if (el.type === 'text' || el.type === 'time') el.value = '';
+      });
+      blank.parentNode.appendChild(row);
+      next++;
+    };
+  }
+  rowAdder('add-calendar', 'cal-blank', /\d+$/, {{ cfg.calendars|length + 1 }});
+  rowAdder('add-schedule', 'sch-blank', /^sch\d+/, {{ cfg.schedules|length + 1 }});
 
   const source = document.getElementById('station_source');
   function showSource() {

@@ -15,7 +15,8 @@ DEFAULTS = {
     'calendars': [],
     'weather': {'enabled': True, 'name': '', 'lat': None, 'lon': None},
     'holidays': {'country': '', 'subdiv': ''},
-    'schedule': {'enabled': True, 'start': '07:00', 'end': '10:00', 'days': [0, 1, 2, 3, 4, 5, 6]},
+    # time windows for the plan, e.g. a morning one every day and an evening one on weekdays
+    'schedules': [{'name': 'Morning', 'enabled': True, 'start': '07:00', 'end': '10:00', 'days': [0, 1, 2, 3, 4, 5, 6]}],
     'dim_past_events': True,
     'background': 'artwork',  # "artwork": the picture the plan replaces, "default": bundled background
     'units': {'temperature': 'C', 'rain': 'mm'},
@@ -48,7 +49,10 @@ def load():
     cfg = copy.deepcopy(DEFAULTS)
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE) as f:
-            merge(cfg, json.load(f))
+            stored = json.load(f)
+        if 'schedule' in stored and 'schedules' not in stored:  # one schedule, before there could be several
+            stored['schedules'] = [{'name': 'Morning', **stored.pop('schedule')}]
+        merge(cfg, stored)
     return cfg
 
 

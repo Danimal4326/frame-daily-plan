@@ -31,6 +31,7 @@ LABELS = {
            'initials': 'MDMDFSS', 'today': 'Heute', 'tomorrow': 'Morgen', 'todos': 'Zu erledigen',
            'no_todos': 'Nichts zu erledigen', 'no_events': 'Keine Termine', 'more': '… und weitere',
            'past': 'vorbei', 'night': 'bis {}° in der Nacht', 'now': 'jetzt {}°', 'all_day': 'Ganztägig',
+           'more_todos': '… und {} weitere',
            'date': '{day}. {month}'},
     'en': {'weekdays': ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
            'months': ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
@@ -38,8 +39,9 @@ LABELS = {
            'initials': 'MTWTFSS', 'today': 'Today', 'tomorrow': 'Tomorrow', 'todos': 'To do',
            'no_todos': 'Nothing to do', 'no_events': 'No events', 'more': '… and more',
            'past': 'done', 'night': 'down to {}° tonight', 'now': 'now {}°', 'all_day': 'All day',
-           'date': '{month} {day}'},
+           'more_todos': '… and {} more', 'date': '{month} {day}'},
 }
+LABELS['en_US'] = {**LABELS['en'], 'initials': 'SMTWTFS', 'first_weekday': calendar.SUNDAY}  # US weeks start on Sunday
 L = LABELS['de']  # set per render
 TWELVE_HOUR = False  # set per render
 
@@ -142,15 +144,17 @@ def month(d, date, x, y, w):
     for i, wd in enumerate(L['initials']):
         d.text((x + cw * i + cw / 2, y), wd, font=font(52, 'Medium'), fill=DIM, anchor='mt')
     y += 80
-    for week in calendar.Calendar().monthdayscalendar(date.year, date.month):
+    first = L.get('first_weekday', calendar.MONDAY)
+    for week in calendar.Calendar(first).monthdayscalendar(date.year, date.month):
         for i, day in enumerate(week):
+            weekend = (first + i) % 7 >= 5
             if not day:
                 continue
             cx, cy = x + cw * i + cw / 2, y + 34
             if day == date.day:
                 d.ellipse([cx - 46, cy - 46, cx + 46, cy + 46], fill=ORANGE)
             d.text((cx, cy), str(day), font=font(58, 'DemiBold' if day == date.day else 'Medium'),
-                   fill=CREAM if day == date.day or i < 5 else SOFT, anchor='mm')
+                   fill=SOFT if weekend and day != date.day else CREAM, anchor='mm')
         y += 86
 
 
@@ -185,7 +189,7 @@ def render(day, out, background_path=None):
     todos = day.get('todos', [])
     fits = (bottom - 40 - y) // 125
     if len(todos) > fits:
-        todos = todos[:fits - 1] + [f'… und {len(todos) - fits + 1} weitere']
+        todos = todos[:fits - 1] + [L['more_todos'].format(len(todos) - fits + 1)]
     # One size for the whole list, shrunk until the longest item fits inside the panel.
     size, max_w = 80, c1[1] - (c1[0] + 195) - 50
     while size > 52 and any(d.textlength(t, font=font(size, 'Medium')) > max_w for t in todos):

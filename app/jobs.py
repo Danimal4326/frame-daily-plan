@@ -139,7 +139,7 @@ def put_temporary(cfg, make_image, what):
         log(f'{what}: uploading {len(image) // 1024} KB')
         cid = tv.send_image(a, image)
         state['plan_ids'].append(cid)
-        state['restore_due'] = in_window(cfg, now_local(cfg))
+        state['restore_due'] = active_schedule(cfg, now_local(cfg)) is not None
         save_state(state)  # record the upload before anything else can fail
         show = a.get_artmode() == 'on'  # never interrupt a running TV programme
         a.select_image(cid, show=show)
@@ -156,8 +156,10 @@ def show_plan(cfg):
         render.render(data, LAST_IMAGE, artwork_background(cfg, a, state.get('restore_id')))
         return data['errors']
     state = put_temporary(cfg, make, 'Plan')
-    if in_window(cfg, now_local(cfg)):  # a manual plan at 06:30 must not stop the 07:00 one
-        state['shown_on'] = now_local(cfg).date().isoformat()
+    now = now_local(cfg)
+    sch = active_schedule(cfg, now)
+    if sch:  # a manual plan at 06:30 must not stop the 07:00 one
+        state['shown_on'] = window_key(sch, now)
         save_state(state)
 
 
@@ -218,17 +220,26 @@ def upload_artwork(cfg, src_path, mode='crop'):
         return cid
 
 
-def in_window(cfg, now):
-    sch = cfg['schedule']
-    return (bool(sch.get('enabled')) and now.weekday() in sch.get('days', [])
-            and sch['start'] <= now.strftime('%H:%M') < sch['end'])
+def active_schedule(cfg, now):
+    """The schedule whose time window is running now (the first one, if windows overlap)."""
+    for sch in cfg.get('schedules', []):
+        if (sch.get('enabled') and now.weekday() in sch.get('days', [])
+                and sch['start'] <= now.strftime('%H:%M') < sch['end']):
+            return sch
+    return None
+
+
+def window_key(sch, now):
+    """Which window the plan was shown in, so the evening window shows a fresh plan after the morning one."""
+    return f"{now.date().isoformat()} {sch['start']}"
 
 
 def _due(cfg, state, now):
     if not cfg.get('tv_ip'):
         return None  # not set up yet
-    if in_window(cfg, now):
-        return 'show' if state.get('shown_on') != now.date().isoformat() else None
+    sch = active_schedule(cfg, now)
+    if sch:
+        return 'show' if state.get('shown_on') != window_key(sch, now) else None
     # After the window (or on a later day if the TV was unreachable): bring the artwork back once.
     return 'restore' if state.get('restore_due') else None
 

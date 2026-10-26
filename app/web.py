@@ -4,6 +4,7 @@ Optional protection: set FRAME_PLAN_PASSWORD; the browser then asks for it (any 
 """
 import functools
 import os
+import re
 import sys
 import threading
 import zoneinfo
@@ -50,7 +51,7 @@ def index():
     setup = {'tv': bool(cfg.get('tv_ip')), 'paired': os.path.exists(os.path.join(config.DATA, 'paired')),
              'place': cfg['weather'].get('lat') is not None, 'calendar': bool(cfg['calendars'])}
     return render_template('index.html', cfg=cfg, state=jobs.load_state(), log=list(jobs.recent)[-40:][::-1],
-                           colors=config.COLORS, sources=stations.SOURCES, lang=lang, t=i18n.texts(lang), setup=setup,
+                           colors=config.COLORS, sources=stations.SOURCES, langs=i18n.LANGS, lang=lang, t=i18n.texts(lang), setup=setup,
                            setup_done=all(setup.values()), countries=sorted(holidays.list_supported_countries()),
                            has_preview=os.path.exists(jobs.PREVIEW), message=request.args.get('msg'))
 
@@ -64,7 +65,7 @@ def discover():
 @app.get('/geocode')
 @protected
 def geocode():
-    return {'results': plan_data.geocode(request.args.get('q', ''), config.load().get('ui_lang', 'en'))}
+    return {'results': plan_data.geocode(request.args.get('q', ''), config.load().get('ui_lang', 'en').split('_')[0])}
 
 
 @app.get('/station-test')
@@ -102,6 +103,7 @@ def set_place():
         cfg['holidays'] = {'country': code, 'subdiv': ''}
     if code in US_STYLE and not cfg.get('units_chosen'):
         cfg.update(units={'temperature': 'F', 'rain': 'in'}, time_format='12h')
+        cfg.update({key: 'en_US' for key in ('plan_lang', 'ui_lang') if cfg.get(key) == 'en'})
     config.save(cfg)
     jobs.log(f"Place set to {cfg['weather']['name']}")
     return redirect(url_for('index', msg=ui()['saved']) + '#setup')
@@ -214,7 +216,8 @@ def upload():
 @app.post('/demo')
 @protected
 def demo():
-    lang = request.form.get('lang', 'de')
+    lang = request.form.get('lang', 'en')
+    lang = lang if lang in plan_data.DEMO else 'en'
     on_tv = request.form.get('target') == 'tv'
     return run_action('a_demo_tv' if on_tv else 'a_demo_preview', lambda: jobs.show_demo(config.load(), lang, on_tv))
 
@@ -248,17 +251,18 @@ def save_settings():
         cfg['timezone'] = tz
     except Exception:  # noqa: BLE001  keep the old one if the name is not a real time zone
         pass
-    cfg['plan_lang'] = f.get('plan_lang', 'en')
+    cfg['plan_lang'] = f.get('plan_lang') if f.get('plan_lang') in i18n.TEXT else 'en'
     cfg['time_format'] = '12h' if f.get('time_format') == '12h' else '24h'
     cfg['units'] = {'temperature': 'F' if f.get('unit_temperature') == 'F' else 'C',
                     'rain': 'in' if f.get('unit_rain') == 'in' else 'mm'}
     cfg['units_chosen'] = True  # picking a place no longer changes them
-    cfg['schedule'] = {
-        'enabled': 'schedule_enabled' in f,
-        'start': f.get('start', '07:00'),
-        'end': f.get('end', '10:00'),
-        'days': [i for i in range(7) if f'day{i}' in f],
-    }
+    schedules = []
+    for i in sorted({int(m[1]) for k in f if (m := re.fullmatch(r'sch(\d+)_start', k))}):  # incl. rows added on the page
+        start, end = f.get(f'sch{i}_start', ''), f.get(f'sch{i}_end', '')
+        if start and end and f'sch{i}_delete' not in f:
+            schedules.append({'name': f.get(f'sch{i}_name', '').strip() or f'{start}–{end}', 'enabled': f'sch{i}_enabled' in f,
+                              'start': start, 'end': end, 'days': [d for d in range(7) if f'sch{i}_day{d}' in f]})
+    cfg['schedules'] = schedules
     cfg['weather'] = {
         'enabled': 'weather_enabled' in f,
         'name': f.get('weather_name', '').strip(),
@@ -283,7 +287,7 @@ def save_settings():
             calendars.append({'name': f.get(f'cal_name{i}', '').strip() or 'Calendar', 'url': url,
                               'color': f.get(f'cal_color{i}', 'green'), 'role': f.get(f'cal_role{i}', 'events')})
     cfg['calendars'] = calendars
-    if cfg['schedule']['start'] >= cfg['schedule']['end']:
+    if any(s['start'] >= s['end'] for s in schedules):
         return redirect(url_for('index', msg=ui()['end_after_start']))
     config.save(cfg)
     jobs.log('Settings saved')

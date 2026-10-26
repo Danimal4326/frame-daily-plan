@@ -45,7 +45,7 @@ def test_nested_defaults_survive_old_config():
 
 
 def test_settings_round_trip_units_time_and_station():
-    form = {'tv_ip': '192.168.1.50', 'timezone': 'America/Chicago', 'plan_lang': 'en', 'start': '07:00', 'end': '10:00',
+    form = {'tv_ip': '192.168.1.50', 'timezone': 'America/Chicago', 'plan_lang': 'en', 'sch0_start': '07:00', 'sch0_end': '10:00',
             'time_format': '12h', 'unit_temperature': 'F', 'unit_rain': 'in', 'cal_count': '0',
             'station_source': 'home_assistant', 'st_home_assistant_url': 'http://ha:8123', 'st_home_assistant_token': 'abc',
             'st_home_assistant_temp_entity': 'sensor.outside_weather_temperature', 'st_mqtt_port': '1884'}
@@ -78,9 +78,40 @@ def test_station_test_reports_errors_as_json():
 
 
 def test_any_number_of_calendars_in_one_save():
-    form = {'tv_ip': '', 'timezone': 'Europe/London', 'plan_lang': 'en', 'start': '07:00', 'end': '10:00'}
+    form = {'tv_ip': '', 'timezone': 'Europe/London', 'plan_lang': 'en', 'sch0_start': '07:00', 'sch0_end': '10:00'}
     for i in (0, 1, 2, 3, 7):  # rows added on the page get the next free numbers, gaps are fine
         form.update({f'cal_name{i}': f'Cal {i}', f'cal_url{i}': f'https://example.com/{i}.ics', f'cal_color{i}': 'teal'})
     form['cal_url5'] = ''  # an added row left empty is ignored
     client().post('/settings', data=form)
     assert [c['name'] for c in config.load()['calendars']] == ['Cal 0', 'Cal 1', 'Cal 2', 'Cal 3', 'Cal 7']
+
+
+def test_several_schedules_round_trip():
+    form = {'tv_ip': '', 'timezone': 'Europe/London', 'plan_lang': 'en_US',
+            'sch0_name': 'Morning', 'sch0_enabled': 'on', 'sch0_start': '07:00', 'sch0_end': '09:00',
+            **{f'sch0_day{d}': 'on' for d in range(7)},
+            'sch1_name': 'Evening', 'sch1_enabled': 'on', 'sch1_start': '18:00', 'sch1_end': '20:00',
+            **{f'sch1_day{d}': 'on' for d in range(5)},
+            'sch4_name': '', 'sch4_start': '', 'sch4_end': ''}  # an added row left empty is ignored
+    client().post('/settings', data=form)
+    cfg = config.load()
+    assert [(s['name'], s['start'], s['days']) for s in cfg['schedules']] == [
+        ('Morning', '07:00', [0, 1, 2, 3, 4, 5, 6]), ('Evening', '18:00', [0, 1, 2, 3, 4])]
+    assert cfg['plan_lang'] == 'en_US'
+    form.update(sch1_end='17:00')
+    assert 'end time' in client().post('/settings', data=form, follow_redirects=True).get_data(as_text=True)
+
+
+def test_old_single_schedule_is_migrated():
+    import json
+    with open(config.CONFIG_FILE, 'w') as f:
+        json.dump({'schedule': {'enabled': True, 'start': '06:30', 'end': '08:00', 'days': [0, 1]}}, f)
+    assert config.load()['schedules'] == [{'name': 'Morning', 'enabled': True, 'start': '06:30', 'end': '08:00', 'days': [0, 1]}]
+
+
+def test_us_english_ui():
+    c = client()
+    c.get('/lang/en_US')
+    html = c.get('/').get_data(as_text=True)
+    assert 'Color' in html and 'Colour' not in html and 'Schedules' in html
+    c.get('/lang/en')
