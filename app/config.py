@@ -18,21 +18,37 @@ DEFAULTS = {
     'schedule': {'enabled': True, 'start': '07:00', 'end': '10:00', 'days': [0, 1, 2, 3, 4, 5, 6]},
     'dim_past_events': True,
     'background': 'artwork',  # "artwork": the picture the plan replaces, "default": bundled background
+    'units': {'temperature': 'C', 'rain': 'mm'},
+    'time_format': '24h',  # or "12h"
+    # current conditions from a weather station, on top of the Open-Meteo forecast
+    'station': {
+        'source': 'none',  # none, home_assistant, mqtt, ambient, wunderground
+        'home_assistant': {'url': '', 'token': '', 'temp_entity': '', 'rain_rate_entity': '', 'rain_today_entity': ''},
+        'mqtt': {'host': '', 'port': 1883, 'username': '', 'password': '', 'temp_topic': '', 'rain_rate_topic': '',
+                 'rain_today_topic': '', 'json_key': '', 'temp_unit': 'C', 'rain_unit': 'mm'},
+        'ambient': {'api_key': '', 'application_key': '', 'mac': ''},
+        'wunderground': {'station_id': '', 'api_key': ''},
+    },
 }
 
-COLORS = ['green', 'blue', 'orange', 'red', 'grey']
+COLORS = ['green', 'blue', 'teal', 'purple', 'pink', 'orange', 'yellow', 'red', 'brown', 'grey']
+
+
+def merge(base, stored):
+    """Stored settings over the defaults, nested dicts key by key (new settings keep their default)."""
+    for key, value in stored.items():
+        if isinstance(value, dict) and isinstance(base.get(key), dict):
+            merge(base[key], value)
+        else:
+            base[key] = value
+    return base
 
 
 def load():
     cfg = copy.deepcopy(DEFAULTS)
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE) as f:
-            stored = json.load(f)
-        for key, value in stored.items():
-            if isinstance(value, dict) and isinstance(cfg.get(key), dict):
-                cfg[key].update(value)
-            else:
-                cfg[key] = value
+            merge(cfg, json.load(f))
     return cfg
 
 

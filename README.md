@@ -23,9 +23,11 @@ Art Mode is quiet, ad-free and always on the wall, so it's a good place for a fa
 
 ## Features
 
-- **Calendars**: any iCal feed, such as Google Calendar's secret address, Apple iCloud's public calendars or school calendars. Each calendar gets a colour. A calendar can also be a "to-do" calendar, where every entry goes on the to-do list.
+- **Calendars**: any iCal feed, such as Google Calendar's secret address, Apple iCloud's public calendars or school calendars. Each calendar gets one of ten colours. A calendar can also be a "to-do" calendar, where every entry goes on the to-do list.
 - **Public holidays** for about 150 countries and their regions.
-- **Weather** from [Open-Meteo](https://open-meteo.com/), with no API key.
+- **Weather** from [Open-Meteo](https://open-meteo.com/), with no API key, in °C or °F.
+- **Your own weather station** (optional): the temperature "now", and "Raining now" while it rains. It reads from Home Assistant, MQTT, Ambient Weather or Weather Underground.
+- **24-hour or 12-hour times** (picking a place in the US switches to °F and 12-hour times).
 - **Plan in English or German**, and a web page in English or German.
 - **Plan on your artwork**: the plan sits on a blurred copy of the picture it replaces. You can also use a calm built-in gradient.
 - **Upload your own picture**: it is fitted to 3840×2160 and kept on the TV as your normal artwork.
@@ -38,7 +40,7 @@ Art Mode is quiet, ad-free and always on the wall, so it's a good place for a fa
 
 ## Requirements
 
-- **A Samsung The Frame** on your home network. It has been tested on a 2017 model (UE55LS003, Art API 1.07). Newer models should work, because the app falls back to the standard upload method, but they are untested. Please report your model (see Compatibility below).
+- **A Samsung The Frame** on your home network. 2017/2018 Frames and newer ones upload differently; the app picks the right way from the TV's art API version. Please report your model (see Compatibility below).
 - **An always-on machine that runs Docker**, on the same network as the TV: for example a Synology NAS with Container Manager, a Raspberry Pi, or any Linux server. Images are built for `amd64` and `arm64`.
 - **Calendar links in iCal format.** Google Calendar: *Settings → your calendar → "Secret address in iCal format"*.
 - No Samsung account, no SmartThings, no cloud service. Internet access is only needed for the calendars and the weather.
@@ -95,13 +97,15 @@ Use **Create preview** to see the plan without touching the TV, and **Show plan 
 
 ## Security
 
-The web page shows your private calendar links. Keep it inside your home network, and don't forward the port to the internet. To add a password, set `FRAME_PLAN_PASSWORD` in `docker-compose.yml`.
+The web page shows your private calendar links and weather-station keys (all stored in `data/config.json`). Keep it inside your home network, and don't forward the port to the internet. To add a password, set `FRAME_PLAN_PASSWORD` in `docker-compose.yml`.
 
 ## Troubleshooting
 
 - **"TV not reachable" or "Connect" times out.** Press **Allow** on the TV while the app is waiting. If you once pressed *Deny*, open *Settings → General → External Device Manager → Device Connection Manager → Device List* on the TV, and allow or delete "Frame Daily Plan".
 - **"Search the network" finds nothing.** The container needs `network_mode: host`. Or enter the TV's IP address by hand.
 - **New calendar entries don't show up.** Google updates secret iCal feeds with a delay, sometimes up to a few hours.
+- **"Show plan now" fails.** The log shows how far it got ("Connected … (art API x)", "uploading …"). To test the TV on its own, run the TV library's own check: `docker exec -it frame-daily-plan python -m samsungframetv.diagnose <TV-IP> -t /data/tv-token.txt` (add `--upload some.jpg` to try an upload, which is deleted again).
+- **Weather station shows nothing.** Use **Test** under "Weather station". For MQTT, values older than 15 minutes are ignored.
 - **The log** is at the bottom of the web page and in `data/frame-daily-plan.log`.
 
 ## Compatibility
@@ -109,6 +113,7 @@ The web page shows your private calendar links. Keep it inside your home network
 | Model | Year | Art API | Status |
 | --- | --- | --- | --- |
 | UE55LS003 | 2017 | 1.07 | ✅ works |
+| QN65LS03D | 2024 | 5.0.1.0 | ✅ works |
 
 Tried another Frame? Please open an issue with the model, year and whether it worked.
 
@@ -122,6 +127,6 @@ FRAME_PLAN_DATA=./data .venv/bin/python app/web.py   # http://localhost:8765
 
 ## Credits and licence
 
-MIT, see `LICENSE`. Third-party parts and their licences are listed in `THIRD_PARTY_NOTICES.md`; the Samsung connection uses [samsungtvws](https://github.com/NickWaterton/samsung-tv-ws-api) (LGPL-3.0). Weather data is by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
+MIT, see `LICENSE`. Third-party parts and their licences are listed in `THIRD_PARTY_NOTICES.md`; the Samsung connection uses [samsungframetv](https://github.com/NickWaterton/samsung-tv-ws-api) (LGPL-3.0). Weather data is by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
 
 Not affiliated with or endorsed by Samsung. "Samsung", "The Frame" and "SmartThings" are trademarks of Samsung Electronics.

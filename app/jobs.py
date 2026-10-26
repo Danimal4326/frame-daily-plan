@@ -1,5 +1,6 @@
 """The actions: preview, show the plan, bring the artwork back, and the daily scheduler."""
 import collections
+import contextlib
 import datetime
 import json
 import os
@@ -19,6 +20,8 @@ PREVIEW = os.path.join(config.DATA, 'preview.jpg')
 LAST_IMAGE = os.path.join(config.DATA, 'last.jpg')
 ART_CACHE = os.path.join(config.DATA, 'art')
 RETRY_AFTER = 2 * 60  # a sleeping TV (e.g. before anyone is in the room) is retried every 2 minutes
+
+LOCK_WAIT = 3 * 60  # a button waits this long for a running TV conversation, then gives up
 
 lock = threading.Lock()  # one TV conversation at a time (scheduler and buttons)
 recent = collections.deque(maxlen=200)
@@ -58,6 +61,22 @@ def now_local(cfg):
 def require_tv(cfg):
     if not cfg.get('tv_ip'):
         raise RuntimeError('No TV IP address set')
+
+
+@contextlib.contextmanager
+def tv_turn():
+    if not lock.acquire(timeout=LOCK_WAIT):
+        raise RuntimeError('The TV is busy with another request, try again in a few minutes')
+    try:
+        yield
+    finally:
+        lock.release()
+
+
+def connect(cfg):
+    a = tv.connect(cfg['tv_ip'])
+    log(f"Connected to {cfg['tv_ip']} (art API {a.api_version})")  # the API decides how uploads work
+    return a
 
 
 def cached_artwork(cfg, state):
@@ -108,15 +127,17 @@ def put_temporary(cfg, make_image, what):
     when the window ends; shown outside it, it stays until "Back to artwork".
     """
     require_tv(cfg)
-    with lock:
+    with tv_turn():
         state = load_state()
-        a = tv.connect(cfg['tv_ip'])
+        a = connect(cfg)
         current = (a.get_current() or {}).get('content_id')
         if current and current not in state['plan_ids']:
             state['restore_id'] = current  # the family's normal artwork
         notes = make_image(a, state)
         with open(LAST_IMAGE, 'rb') as f:
-            cid = tv.send_image(a, f.read())
+            image = f.read()
+        log(f'{what}: uploading {len(image) // 1024} KB')
+        cid = tv.send_image(a, image)
         state['plan_ids'].append(cid)
         state['restore_due'] = in_window(cfg, now_local(cfg))
         save_state(state)  # record the upload before anything else can fail
@@ -164,9 +185,9 @@ def show_text(cfg, text, theme='dark'):
 
 def restore(cfg):
     require_tv(cfg)
-    with lock:
+    with tv_turn():
         state = load_state()
-        a = tv.connect(cfg['tv_ip'])
+        a = connect(cfg)
         if state.get('restore_id'):
             a.select_image(state['restore_id'], show=a.get_artmode() == 'on')
             log(f'Artwork {state["restore_id"]} restored')
@@ -181,9 +202,9 @@ def upload_artwork(cfg, src_path, mode='crop'):
     require_tv(cfg)
     fitted = os.path.join(config.DATA, 'upload-fitted.jpg')
     render.fit_artwork(src_path, fitted, mode)
-    with lock:
+    with tv_turn():
         state = load_state()
-        a = tv.connect(cfg['tv_ip'])
+        a = connect(cfg)
         with open(fitted, 'rb') as f:
             cid = tv.send_image(a, f.read())
         show = a.get_artmode() == 'on'

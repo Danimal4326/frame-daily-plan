@@ -19,11 +19,13 @@ import config  # noqa: E402
 import i18n  # noqa: E402
 import plan_data  # noqa: E402
 import jobs  # noqa: E402
+import stations  # noqa: E402
 import tv  # noqa: E402
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 40 * 1024 * 1024  # phone photos
 PASSWORD = os.environ.get('FRAME_PLAN_PASSWORD', '')
+US_STYLE = {'US', 'LR', 'MM'}  # °F, inches and 12-hour times by default
 
 
 def ui():
@@ -48,7 +50,7 @@ def index():
     setup = {'tv': bool(cfg.get('tv_ip')), 'paired': os.path.exists(os.path.join(config.DATA, 'paired')),
              'place': cfg['weather'].get('lat') is not None, 'calendar': bool(cfg['calendars'])}
     return render_template('index.html', cfg=cfg, state=jobs.load_state(), log=list(jobs.recent)[-40:][::-1],
-                           colors=config.COLORS, lang=lang, t=i18n.texts(lang), setup=setup,
+                           colors=config.COLORS, sources=stations.SOURCES, lang=lang, t=i18n.texts(lang), setup=setup,
                            setup_done=all(setup.values()), countries=sorted(holidays.list_supported_countries()),
                            has_preview=os.path.exists(jobs.PREVIEW), message=request.args.get('msg'))
 
@@ -63,6 +65,15 @@ def discover():
 @protected
 def geocode():
     return {'results': plan_data.geocode(request.args.get('q', ''), config.load().get('ui_lang', 'en'))}
+
+
+@app.get('/station-test')
+@protected
+def station_test():
+    try:
+        return {'ok': True, 'reading': stations.read(config.load())}
+    except Exception as e:  # noqa: BLE001
+        return {'ok': False, 'error': f'{type(e).__name__}: {e}'}
 
 
 @app.post('/set-tv')
@@ -89,6 +100,8 @@ def set_place():
     code = f.get('country_code', '').upper()
     if code in holidays.list_supported_countries() and not cfg['holidays'].get('country'):
         cfg['holidays'] = {'country': code, 'subdiv': ''}
+    if code in US_STYLE and not cfg.get('units_chosen'):
+        cfg.update(units={'temperature': 'F', 'rain': 'in'}, time_format='12h')
     config.save(cfg)
     jobs.log(f"Place set to {cfg['weather']['name']}")
     return redirect(url_for('index', msg=ui()['saved']) + '#setup')
@@ -139,7 +152,7 @@ def pair():
     steps = tv.diagnose(config.load()['tv_ip'])
     t = ui()
     text = ' · '.join(f"{t['step_' + n]}: {'ok' if r == 'ok' else t['error'] + ' (' + d + ')'}" for n, r, d, _ in steps)
-    ok = len(steps) == 3 and all(r == 'ok' for _, r, _, _ in steps)
+    ok = len(steps) == 4 and all(r == 'ok' for _, r, _, _ in steps)
     if ok:
         open(os.path.join(config.DATA, 'paired'), 'w').close()
     jobs.log(f'Connect: {text}')
@@ -236,6 +249,10 @@ def save_settings():
     except Exception:  # noqa: BLE001  keep the old one if the name is not a real time zone
         pass
     cfg['plan_lang'] = f.get('plan_lang', 'en')
+    cfg['time_format'] = '12h' if f.get('time_format') == '12h' else '24h'
+    cfg['units'] = {'temperature': 'F' if f.get('unit_temperature') == 'F' else 'C',
+                    'rain': 'in' if f.get('unit_rain') == 'in' else 'mm'}
+    cfg['units_chosen'] = True  # picking a place no longer changes them
     cfg['schedule'] = {
         'enabled': 'schedule_enabled' in f,
         'start': f.get('start', '07:00'),
@@ -248,6 +265,13 @@ def save_settings():
         'lat': float(f['lat']) if f.get('lat') else None,
         'lon': float(f['lon']) if f.get('lon') else None,
     }
+    source = f.get('station_source', 'none')
+    cfg['station']['source'] = source if source in stations.SOURCES else 'none'
+    for name, fields in cfg['station'].items():
+        if isinstance(fields, dict):
+            for key, old in fields.items():
+                value = str(f.get(f'st_{name}_{key}', old)).strip()
+                fields[key] = (int(value) if value.isdigit() else 1883) if key == 'port' else value
     cfg['holidays'] = {'country': f.get('hol_country', '').strip().upper(), 'subdiv': f.get('hol_subdiv', '').strip().upper()}
     cfg['dim_past_events'] = 'dim_past_events' in f
     cfg['background'] = f.get('background', 'artwork')
@@ -269,6 +293,7 @@ def main():
     os.makedirs(config.DATA, exist_ok=True)
     jobs.log('Frame Daily Plan started')
     jobs.start_scheduler()
+    stations.start_watcher()
     serve(app, host='0.0.0.0', port=int(os.environ.get('PORT', '8765')), threads=4)
 
 

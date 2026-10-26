@@ -1,28 +1,40 @@
 """Talking to the Frame's Art Mode.
 
-Frames differ by model year. Old ones (e.g. 2017, Art API 1.07) refuse the library's
-socket upload and send thumbnails in a way the library cannot decode; for those we do
-what the SmartThings app does (one binary WebSocket frame). Newer ones use the library's
-standard methods. Each call tries one way and falls back to the other.
+Frames differ by model year: 2017/2018 ones (art API 1.x) take an upload as one binary
+WebSocket message and send thumbnails inline; newer ones (2.x, 4.x and up, e.g. 2024) use a
+separate transfer socket, which is TLS on recent models. samsungframetv picks the right way
+from the art API version, so this module only adds timeouts and logging around it.
 """
+import collections
 import concurrent.futures
 import ipaddress
-import json
 import os
 import socket
-import uuid
 
 import requests
-from samsungtvws import SamsungTVWS
+from samsungframetv import SamsungTVWS
 
 import config
 
 NAME = 'Frame Daily Plan'
+WAIT = 30  # seconds for any one reply from the TV, so a stuck TV fails instead of hanging
 
 
 def _tv(ip, timeout):
     return SamsungTVWS(host=ip, port=8002, token_file=os.path.join(config.DATA, 'tv-token.txt'),
                        name=NAME, timeout=timeout)
+
+
+def _bounded_transfers(a):
+    """The library opens the thumbnail/upload socket without a read timeout; give it one."""
+    open_socket = a._open_d2d_socket
+
+    def opened(conn_info, secured=None):
+        s = open_socket(conn_info, secured)
+        s.settimeout(WAIT)
+        return s
+    a._open_d2d_socket = opened
+    return a
 
 
 def connect(ip):
@@ -32,61 +44,27 @@ def connect(ip):
     auth = _tv(ip, 120)
     auth.open()
     auth.close()
-    return _tv(ip, 30).art()
-
-
-def _send_image_binary(a, data, matte):
-    if a.connection is None:
-        a.open()
-    upload_id = str(uuid.uuid4())
-    inner = {'request': 'send_image', 'file_type': 'JPEG', 'matte_id': matte, 'id': upload_id}
-    outer = {'method': 'ms.channel.emit', 'params': {'data': json.dumps(inner), 'to': 'host', 'event': 'art_app_request'}}
-    header = json.dumps(outer, separators=(',', ':')).encode()
-    a.connection.send_binary(len(header).to_bytes(2, 'big') + header + data)
-    return a.wait_for_response('image_added', upload_id)['content_id']
+    a = _bounded_transfers(_tv(ip, WAIT).art(timeout=WAIT))
+    a.api_version = a.get_api_version()
+    return a
 
 
 def send_image(a, data, matte='none'):
-    try:
-        return _send_image_binary(a, data, matte)
-    except Exception:  # noqa: BLE001  newer firmware: the library's own upload
-        a.close()
-        return a.upload(data, file_type='JPEG', matte=matte, portrait_matte=matte)
-
-
-def _thumbnail_binary(a, content_id, timeout=30):
-    if a.connection is None:
-        a.open()
-    req_id = str(uuid.uuid4())
-    inner = {'request': 'get_thumbnail', 'content_id': content_id, 'id': req_id,
-             'conn_info': {'d2d_mode': 'socket', 'connection_id': uuid.uuid4().int % (4 << 30), 'id': req_id}}
-    a.connection.send(json.dumps({'method': 'ms.channel.emit',
-                                  'params': {'event': 'art_app_request', 'to': 'host', 'data': json.dumps(inner)}}))
-    a.connection.settimeout(timeout)
-    for _ in range(50):
-        raw = a.connection.recv()
-        if isinstance(raw, str):
-            if '"error"' in raw and req_id in raw:
-                raise RuntimeError(f'get_thumbnail {content_id} failed')
-            continue
-        for magic in (b'\xff\xd8\xff', b'\x89PNG'):
-            pos = raw.find(magic)
-            if pos >= 0:
-                return raw[pos:]
-    raise RuntimeError(f'no thumbnail received for {content_id}')
+    cid = a.upload(data, file_type='JPEG', matte=matte, portrait_matte=matte)
+    if not cid:
+        raise RuntimeError(f'the TV did not confirm the upload within {WAIT} s')
+    return cid
 
 
 def get_thumbnail(a, content_id):
-    try:
-        return _thumbnail_binary(a, content_id)
-    except Exception:  # noqa: BLE001  newer firmware: the library's own method
-        a.close()
-        data = a.get_thumbnail(content_id)
-        if isinstance(data, dict):
-            data = next(iter(data.values()))
-        if isinstance(data, list):
-            data = data[0]
-        return bytes(data)
+    data = a.get_thumbnail(content_id)
+    if isinstance(data, dict):
+        data = next(iter(data.values()), None)
+    if isinstance(data, list):
+        data = data[0] if data else None
+    if not data:
+        raise RuntimeError(f'no thumbnail received for {content_id}')
+    return bytes(data)
 
 
 def status(ip):
@@ -99,9 +77,11 @@ def diagnose(ip):
     import time
     steps = []
     tv = _tv(ip, 120)
-    for name, fn in (('rest', lambda: tv.rest_device_info()['device'].get('PowerState', 'ok')),
+    for name, fn in (('rest', lambda: '{modelName} {PowerState}'.format_map(
+                         collections.defaultdict(str, tv.rest_device_info()['device']))),
                      ('remote', lambda: (tv.open(), tv.close(), 'ok')[2]),
-                     ('art', lambda: tv.art().get_artmode())):
+                     ('art', lambda: tv.art(timeout=WAIT).get_artmode()),
+                     ('api', lambda: tv.art(timeout=WAIT).get_api_version())):
         t = time.time()
         try:
             steps.append((name, 'ok', str(fn())[:80], round(time.time() - t, 1)))

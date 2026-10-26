@@ -1,5 +1,6 @@
-# samsungtvws from NickWaterton's fork (Art Mode support), pinned to the tested commit
-samsungtvws @ https://github.com/NickWaterton/samsung-tv-ws-api/archive/fe95ef1d784cd32f49bf9a07ec479576574eea07.zip
+# Nick Waterton's Frame library (Art Mode on 2017 to 2025 models)
+samsungframetv==4.1.3
+paho-mqtt==2.1.0
 requests==2.32.5
 pillow==11.3.0
 icalendar==6.3.1

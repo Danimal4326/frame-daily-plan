@@ -8,6 +8,7 @@ Fonts are Inter and Noto Color Emoji (both OFL, bundled in fonts/).
 import calendar
 import datetime
 import os
+import re
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
@@ -17,7 +18,9 @@ CREAM = (255, 249, 238)
 SOFT = (214, 210, 200)
 DIM = (165, 162, 155)
 ORANGE = (242, 150, 60)
-COLORS = {'green': (120, 200, 170), 'orange': ORANGE, 'blue': (120, 160, 220), 'red': (232, 112, 112), 'grey': (170, 170, 170)}
+COLORS = {'green': (120, 200, 170), 'orange': ORANGE, 'blue': (120, 160, 220), 'red': (232, 112, 112), 'grey': (170, 170, 170),
+          'teal': (90, 190, 195), 'purple': (175, 140, 220), 'pink': (235, 140, 190), 'yellow': (238, 205, 100),
+          'brown': (190, 150, 110)}
 HERE = os.path.dirname(os.path.abspath(__file__))
 FONTS = os.path.join(HERE, 'fonts')
 EMOJI = os.path.join(FONTS, 'NotoColorEmoji.ttf')  # colour bitmaps, only usable at size 109
@@ -27,17 +30,18 @@ LABELS = {
                       'Oktober', 'November', 'Dezember'],
            'initials': 'MDMDFSS', 'today': 'Heute', 'tomorrow': 'Morgen', 'todos': 'Zu erledigen',
            'no_todos': 'Nichts zu erledigen', 'no_events': 'Keine Termine', 'more': '… und weitere',
-           'past': 'vorbei', 'night': 'bis {}° in der Nacht', 'all_day': 'Ganztägig',
+           'past': 'vorbei', 'night': 'bis {}° in der Nacht', 'now': 'jetzt {}°', 'all_day': 'Ganztägig',
            'date': '{day}. {month}'},
     'en': {'weekdays': ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
            'months': ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
                       'October', 'November', 'December'],
            'initials': 'MTWTFSS', 'today': 'Today', 'tomorrow': 'Tomorrow', 'todos': 'To do',
            'no_todos': 'Nothing to do', 'no_events': 'No events', 'more': '… and more',
-           'past': 'done', 'night': 'down to {}° tonight', 'all_day': 'All day',
+           'past': 'done', 'night': 'down to {}° tonight', 'now': 'now {}°', 'all_day': 'All day',
            'date': '{month} {day}'},
 }
 L = LABELS['de']  # set per render
+TWELVE_HOUR = False  # set per render
 
 
 _fonts = {}
@@ -65,6 +69,14 @@ def wrap(d, text, f, max_w, max_lines=2):
             line = word
     lines.append(line)
     return lines[:max_lines]
+
+
+def clock(text):
+    """'19:30' as '7:30 PM' on 12-hour plans; anything else ('All day', 'Holiday') unchanged."""
+    if not TWELVE_HOUR or not re.fullmatch(r'\d\d:\d\d', text or ''):
+        return text
+    h, m = map(int, text.split(':'))
+    return f"{h % 12 or 12}:{m:02d} {'AM' if h < 12 else 'PM'}"
 
 
 def default_background():
@@ -116,7 +128,7 @@ def events(d, items, x, y, w, bottom, scale=1.0):
         past = ev.get('past')
         color = COLORS['grey'] if past else COLORS.get(ev.get('color', 'green'), COLORS['green'])
         d.rounded_rectangle([x, y + 8, x + 14, y + need - s(50)], radius=7, fill=color)
-        times = ev.get('start', L['all_day']) + (f" – {ev['end']}" if ev.get('end') else '')
+        times = clock(ev.get('start', L['all_day'])) + (f" – {clock(ev['end'])}" if ev.get('end') else '')
         d.text((x + 50, y), times + (f"  ·  {L['past']}" if past else ''), font=font(s(62), 'Medium'), fill=DIM if past else SOFT)
         for i, line in enumerate(lines):
             d.text((x + 50, y + s(80) + i * s(92)), line, font=tf, fill=DIM if past else CREAM)
@@ -143,8 +155,9 @@ def month(d, date, x, y, w):
 
 
 def render(day, out, background_path=None):
-    global L
+    global L, TWELVE_HOUR
     L = LABELS.get(day.get('lang', 'de'), LABELS['de'])
+    TWELVE_HOUR = day.get('time_format') == '12h'
     date = datetime.date.fromisoformat(day['date'])
     bg = background(background_path).convert('RGBA')
     layer = Image.new('RGBA', (W, H), (0, 0, 0, 0))
@@ -193,10 +206,16 @@ def render(day, out, background_path=None):
         icon = icon.resize((230, 230), Image.LANCZOS)
         im.alpha_composite(icon, (c3[0] + 70, M + 70))
         d.text((c3[0] + 340, M + 70), f"{wx['max']}°", font=font(150, 'DemiBold'), fill=CREAM)
-        d.text((c3[0] + 340, M + 250), L['night'].format(wx['min']), font=font(58, 'Medium'), fill=SOFT)
-        d.text((c3[0] + 70, M + 380), wx['text'], font=font(66, 'Medium'), fill=CREAM)
+        # The station's "now" (if any) above the night low; two lines push the text down a little.
+        small = [L['now'].format(wx['now'])] if wx.get('now') is not None else []
+        small += [L['night'].format(wx['min'])] if wx.get('min') is not None else []
+        two = len(small) == 2
+        for i, line in enumerate(small):
+            d.text((c3[0] + 340, M + (235 if two else 250) + i * 65), line, font=font(54 if two else 58, 'Medium'), fill=SOFT)
+        shift = 30 if two else 0
+        d.text((c3[0] + 70, M + 380 + shift), wx['text'], font=font(66, 'Medium'), fill=CREAM)
         if wx.get('hint'):
-            d.text((c3[0] + 70, M + 480), wx['hint'], font=font(66, 'DemiBold'), fill=ORANGE)
+            d.text((c3[0] + 70, M + 480 + shift), wx['hint'], font=font(66, 'DemiBold'), fill=ORANGE)
 
     events(d, day.get('tomorrow', []), c3[0] + 70, 1070, c3[1] - c3[0] - 140, bottom - 40, scale=0.82)
 
@@ -235,7 +254,6 @@ def render_text(text, out, theme='dark'):
     bg, ink = TEXT_THEMES.get(theme, TEXT_THEMES['dark'])
     im = Image.new('RGB', (W, H), bg)
     d = ImageDraw.Draw(im)
-    import re
     # Never break between a number and its unit ("16 Uhr", "5 €"), or after a lone word like "um".
     text = re.sub(r'(\d+)\s+(Uhr|€|Euro|Minuten|min)\b', '\\1\u00a0\\2', text)
     paragraphs = [p.strip() for p in text.strip().splitlines()]

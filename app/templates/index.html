@@ -141,6 +141,15 @@
       <label for="timezone">{{ t.timezone }}</label><input type="text" id="timezone" name="timezone" value="{{ cfg.timezone }}">
       <label for="plan_lang">{{ t.plan_lang }}</label>
       <select id="plan_lang" name="plan_lang" style="max-width:220px"><option value="en" {{ 'selected' if cfg.plan_lang == 'en' }}>English</option><option value="de" {{ 'selected' if cfg.plan_lang == 'de' }}>Deutsch</option></select>
+      <label for="time_format">{{ t.time_format }}</label>
+      <select id="time_format" name="time_format" style="max-width:220px"><option value="24h" {{ 'selected' if cfg.time_format != '12h' }}>{{ t.time_24h }}</option><option value="12h" {{ 'selected' if cfg.time_format == '12h' }}>{{ t.time_12h }}</option></select>
+      <label>{{ t.units }}</label>
+      <div class="row">
+        <label class="inline"><input type="radio" name="unit_temperature" value="C" {% if cfg.units.temperature != 'F' %}checked{% endif %}> °C</label>
+        <label class="inline"><input type="radio" name="unit_temperature" value="F" {% if cfg.units.temperature == 'F' %}checked{% endif %}> °F</label>
+        <label class="inline"><input type="radio" name="unit_rain" value="mm" {% if cfg.units.rain != 'in' %}checked{% endif %}> mm</label>
+        <label class="inline"><input type="radio" name="unit_rain" value="in" {% if cfg.units.rain == 'in' %}checked{% endif %}> in</label>
+      </div>
       <label>{{ t.background }}</label>
       <div>
         <label class="inline"><input type="radio" name="background" value="artwork" {% if cfg.background == 'artwork' %}checked{% endif %}> {{ t.bg_artwork }}</label>
@@ -180,6 +189,36 @@
         {{ t.region }} <select name="hol_subdiv" id="hol_subdiv" data-current="{{ cfg.holidays.subdiv }}" style="width:130px"><option value="">–</option></select>
         <span class="hint">{{ t.holidays_hint }}</span></div>
     </div>
+  </section>
+
+  <section class="card">
+    <h2>{{ t.station }}</h2>
+    <p class="hint">{{ t.station_hint }}</p>
+    {% set station_fields = {
+      'home_assistant': [('url', 'text', 'http://homeassistant.local:8123'), ('token', 'password', ''),
+                         ('temp_entity', 'text', 'sensor.outside_temperature'), ('rain_rate_entity', 'text', 'sensor.outside_rain_rate'),
+                         ('rain_today_entity', 'text', 'sensor.outside_daily_rain')],
+      'mqtt': [('host', 'text', '192.168.1.10'), ('port', 'number', '1883'), ('username', 'text', ''), ('password', 'password', ''),
+               ('temp_topic', 'text', 'homeassistant/sensor/…/temp/state'), ('rain_rate_topic', 'text', ''), ('rain_today_topic', 'text', ''),
+               ('json_key', 'text', ''), ('temp_unit', 'temp', ''), ('rain_unit', 'rain', '')],
+      'ambient': [('api_key', 'password', ''), ('application_key', 'password', ''), ('mac', 'text', '')],
+      'wunderground': [('station_id', 'text', 'KTXAUSTI123'), ('api_key', 'password', '')],
+    } %}
+    <div class="grid">
+      <label for="station_source">{{ t.source }}</label>
+      <select id="station_source" name="station_source" style="max-width:320px">{% for src in sources %}<option value="{{ src }}" {{ 'selected' if cfg.station.source == src }}>{{ t['src_' + src] }}</option>{% endfor %}</select>
+    </div>
+    {% for src, fields in station_fields.items() %}
+    <div class="grid station-group" data-source="{{ src }}" style="margin-top:10px">
+      {% for key, kind, ph in fields %}{% set value = cfg.station[src][key] %}
+      <label for="st_{{ src }}_{{ key }}">{{ t.st_fields[key] }}</label>
+      {% if kind == 'temp' %}<select id="st_{{ src }}_{{ key }}" name="st_{{ src }}_{{ key }}" style="max-width:120px"><option {{ 'selected' if value == 'C' }}>C</option><option {{ 'selected' if value == 'F' }}>F</option></select>
+      {% elif kind == 'rain' %}<select id="st_{{ src }}_{{ key }}" name="st_{{ src }}_{{ key }}" style="max-width:120px"><option {{ 'selected' if value == 'mm' }}>mm</option><option {{ 'selected' if value == 'in' }}>in</option></select>
+      {% else %}<input type="{{ kind }}" id="st_{{ src }}_{{ key }}" name="st_{{ src }}_{{ key }}" value="{{ value }}" placeholder="{{ ph }}" autocomplete="off">{% endif %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+    <div class="row" style="margin-top:12px"><button type="button" id="station-test">{{ t.btn_test }}</button><span class="hint" id="station-result">{{ t.test_hint }}</span></div>
   </section>
 
   <p><button class="primary">{{ t.btn_save }}</button></p>
@@ -232,6 +271,22 @@
     });
   }
   country.onchange = loadRegions; loadRegions();
+
+  const source = document.getElementById('station_source');
+  function showSource() {
+    document.querySelectorAll('.station-group').forEach(g => { g.style.display = g.dataset.source === source.value ? '' : 'none'; });
+  }
+  source.onchange = showSource; showSource();
+  const S = {{ {'testing': t.searching, 'temp': t.st_now_temp, 'rate': t.st_now_rate, 'today': t.st_now_today}|tojson }};
+  document.getElementById('station-test').onclick = () => {
+    const box = document.getElementById('station-result'); box.textContent = S.testing;
+    fetch('{{ url_for("station_test") }}').then(r => r.json()).then(d => {
+      if (!d.ok) { box.textContent = d.error; return; }
+      const r = d.reading || {}, n = (v, unit) => v == null ? '–' : (Math.round(v * 10) / 10) + ' ' + unit;
+      box.textContent = S.temp + ': ' + n(r.temp_c, '°C') + (r.temp_c == null ? '' : ' / ' + n(r.temp_c * 9 / 5 + 32, '°F'))
+        + ' · ' + S.rate + ': ' + n(r.rain_rate_mm_h, 'mm/h') + ' · ' + S.today + ': ' + n(r.rain_today_mm, 'mm');
+    }).catch(e => { box.textContent = String(e); });
+  };
 </script>
 </body>
 </html>

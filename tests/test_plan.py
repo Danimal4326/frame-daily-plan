@@ -71,3 +71,34 @@ def test_text_and_fit(tmp_path):
     for mode in ('crop', 'fit'):
         render.fit_artwork(str(tmp_path / 'tall.jpg'), str(tmp_path / f'{mode}.jpg'), mode)
         assert Image.open(tmp_path / f'{mode}.jpg').size == (3840, 2160)
+
+
+def test_twelve_hour_clock():
+    render.TWELVE_HOUR = True
+    try:
+        assert render.clock('07:15') == '7:15 AM'
+        assert render.clock('12:00') == '12:00 PM'
+        assert render.clock('00:30') == '12:30 AM'
+        assert render.clock('19:45') == '7:45 PM'
+        assert render.clock('All day') == 'All day'
+    finally:
+        render.TWELVE_HOUR = False
+    assert render.clock('19:45') == '19:45'
+
+
+def test_render_12h_fahrenheit_with_station(tmp_path):
+    cfg = dict(CFG, time_format='12h', units={'temperature': 'F', 'rain': 'in'})
+    data = plan_data.demo(cfg, datetime.datetime(2026, 10, 27, 8, 0, tzinfo=TZ), 'en')
+    assert data['weather']['max'] == 66  # 19 °C
+    data['weather']['now'] = 59
+    out = tmp_path / 'us.jpg'
+    render.render(data, str(out))
+    assert Image.open(out).size == (3840, 2160)
+
+
+def test_every_colour_has_a_tone_and_names():
+    import config
+    import i18n
+    for c in config.COLORS:
+        assert c in render.COLORS
+        assert all(c in i18n.TEXT[lang]['colors'] for lang in i18n.TEXT)
