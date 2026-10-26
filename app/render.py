@@ -44,8 +44,11 @@ LABELS = {
            'weekdays_short': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']},
 }
 LABELS['en_US'] = {**LABELS['en'], 'initials': 'SMTWTFS', 'first_weekday': calendar.SUNDAY}  # US weeks start on Sunday
-# Today and tomorrow share the middle column next to the weather, in slightly smaller type.
-TODAY_SCALE, TOMORROW_SCALE, CENTER_HEAD = 0.75, 0.7, 160
+# Next to the weather, today's events and tomorrow's right under them share one panel, in the
+# largest type (1 down to 0.55) that fits them all.
+SCALES = [round(1 - 0.05 * i, 2) for i in range(10)]
+CENTER_HEAD = 175  # where the events start below the panel title
+TOMORROW_HEAD = 160  # the line and "Tomorrow" between the two days (scaled with the events)
 RADAR_TOP = 1320  # the radar map fills the bottom of the right column
 RADAR_SIZE = (W - M - 2570, H - M - RADAR_TOP)
 
@@ -132,14 +135,14 @@ def events(d, items, x, y, w, bottom, scale=1.0):
     s = lambda v: round(v * scale)  # noqa: E731
     if not items:
         d.text((x, y), L['no_events'], font=font(s(70), 'Medium'), fill=DIM)
-        return
+        return y + s(110)
     tf = font(s(74), 'DemiBold')
     more_h = s(80)  # room kept for "… and more" unless this is the last event
     for i, (ev, need) in enumerate(zip(items, event_heights(d, items, w, scale))):
         lines = wrap(d, ev['title'], tf, w - 60)
         if y + need > (bottom if i == len(items) - 1 else bottom - more_h):
             d.text((x, y), L['more'], font=font(s(64), 'Medium'), fill=DIM)
-            return
+            return y + more_h
         past = ev.get('past')
         color = COLORS['grey'] if past else COLORS.get(ev.get('color', 'green'), COLORS['green'])
         d.rounded_rectangle([x, y + 8, x + 14, y + need - s(50)], radius=7, fill=color)
@@ -148,6 +151,7 @@ def events(d, items, x, y, w, bottom, scale=1.0):
         for n, line in enumerate(lines):
             d.text((x + 50, y + s(80) + n * s(92)), line, font=tf, fill=DIM if past else CREAM)
         y += need
+    return y
 
 
 def emoji(text, size):
@@ -217,15 +221,29 @@ def month(d, date, x, y, w):
         y += 86
 
 
-def split_center(d, today, tomorrow, w, top, bottom):
-    """Where the Today panel ends: room for all of today if possible, but always for two of tomorrow's events."""
-    head, gap = CENTER_HEAD + 30, 50
-    today_need = head + (sum(event_heights(d, today, w, TODAY_SCALE)) if today else 110)
-    tomorrow_min = head + (sum(event_heights(d, tomorrow[:2], w, TOMORROW_SCALE)) if tomorrow else 110)
-    if len(tomorrow) > 2:
-        tomorrow_min += round(80 * TOMORROW_SCALE)  # the "… and more" line
-    total = bottom - top
-    return top + max(min(max(today_need, total // 2), total - gap - tomorrow_min), total // 3)
+def list_height(d, items, w, scale):
+    return sum(event_heights(d, items, w, scale)) if items else round(110 * scale)
+
+
+def day_scale(d, today, tomorrow, w, room):
+    """The largest type in which today, the "Tomorrow" heading and tomorrow all fit."""
+    for scale in SCALES:
+        if list_height(d, today, w, scale) + round(TOMORROW_HEAD * scale) + list_height(d, tomorrow, w, scale) <= room:
+            return scale
+    return SCALES[-1]
+
+
+def today_and_tomorrow(d, today, tomorrow, x, top, w, bottom):
+    """Today's events, then tomorrow's right under them. If even the smallest type is too big,
+    today is cut short ("… and more") so that two of tomorrow's events always show."""
+    scale = day_scale(d, today, tomorrow, w, bottom - top)
+    s = lambda v: round(v * scale)  # noqa: E731
+    keep = list_height(d, tomorrow[:2], w, scale) + (s(80) if len(tomorrow) > 2 else 0)
+    y = events(d, today, x, top, w, bottom - s(TOMORROW_HEAD) - keep, scale)
+    d.line([x, y + s(10), x + w, y + s(10)], fill=DIM, width=3)
+    d.text((x, y + s(35)), L['tomorrow'], font=font(s(80), 'DemiBold'), fill=CREAM)
+    events(d, tomorrow, x, y + s(TOMORROW_HEAD), w, bottom, scale)
+    return scale
 
 
 def render(day, out, background_path=None):
@@ -235,23 +253,20 @@ def render(day, out, background_path=None):
     date = datetime.date.fromisoformat(day['date'])
     bg = background(background_path).convert('RGBA')
     layer = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-    measure = ImageDraw.Draw(layer)
 
     c1, c2, c3 = (M, 1230), (1310, 2490), (2570, W - M)
     # Without a quote the panels use the strip at the bottom too.
     top, bottom = 560, 1880 if day.get('quote') else H - M
     wx, radar = day.get('weather'), day.get('radar')
     # With weather, the right column is weather, outlook and radar, and today and tomorrow share the
-    # middle one. Without any, tomorrow keeps the right column to itself.
+    # middle panel. Without any, tomorrow keeps the right column to itself.
     side = bool(wx or radar)
     today, tomorrow = day.get('today', []), day.get('tomorrow', [])
     ew = c2[1] - c2[0] - 140
     panel(layer, (c1[0], top, c1[1], 1300))
     panel(layer, (c1[0], 1350, c1[1], bottom), day.get('todo_title', L['todos']))
     if side:
-        split = split_center(measure, today, tomorrow, ew, M, bottom)
-        panel(layer, (c2[0], M, c2[1], split), day.get('today_title', L['today']))
-        panel(layer, (c2[0], split + 50, c2[1], bottom), L['tomorrow'])
+        panel(layer, (c2[0], M, c2[1], bottom), day.get('today_title', L['today']))
         panel(layer, (c3[0], M, c3[1], 820))
         days = (wx or {}).get('outlook') or []
         outlook_box = (c3[0], 870, c3[1], RADAR_TOP - 50 if radar else bottom)
@@ -287,8 +302,7 @@ def render(day, out, background_path=None):
         y += 125
 
     if side:
-        events(d, today, c2[0] + 70, M + CENTER_HEAD, ew, split - 30, TODAY_SCALE)
-        events(d, tomorrow, c2[0] + 70, split + 50 + CENTER_HEAD, ew, bottom - 30, TOMORROW_SCALE)
+        today_and_tomorrow(d, today, tomorrow, c2[0] + 70, M + CENTER_HEAD, ew, bottom - 30)
     else:
         events(d, today, c2[0] + 70, M + 200, ew, bottom - 40)
         events(d, tomorrow, c3[0] + 70, 1070, c3[1] - c3[0] - 140, bottom - 40, scale=0.82)

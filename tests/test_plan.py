@@ -140,15 +140,19 @@ def test_layout_with_outlook_and_radar(tmp_path):
         assert Image.open(out).size == (3840, 2160)
 
 
-def test_center_split_keeps_room_for_tomorrow():
+def test_today_and_tomorrow_type_shrinks_to_fit():
     d = ImageDraw.Draw(Image.new('RGBA', (10, 10)))
     ev = lambda n: [{'start': '08:00', 'title': f'Event {i}'} for i in range(n)]  # noqa: E731
     render.L = render.LABELS['en']
-    top, bottom = render.M, render.H - render.M
-    split = render.split_center(d, ev(20), ev(5), 1040, top, bottom)
-    room = bottom - split - 50 - render.CENTER_HEAD - 30
-    assert room >= sum(render.event_heights(d, ev(2), 1040, render.TOMORROW_SCALE))
-    assert render.split_center(d, ev(1), ev(1), 1040, top, bottom) - top == (bottom - top) // 2  # quiet day: half each
+    room = render.H - 2 * render.M - render.CENTER_HEAD - 30
+    assert render.day_scale(d, ev(3), ev(2), 1040, room) == 1.0  # a quiet day keeps the big type
+    busy = render.day_scale(d, ev(5), ev(3), 1040, room)
+    assert render.SCALES[-1] < busy < 1.0
+    assert render.day_scale(d, ev(40), ev(10), 1040, room) == render.SCALES[-1]
+    # Too many even for the smallest type: today is cut short, two of tomorrow's still fit.
+    scale = render.SCALES[-1]
+    keep = render.list_height(d, ev(2), 1040, scale) + round(80 * scale)
+    assert render.CENTER_HEAD + round(render.TOMORROW_HEAD * scale) + keep < room
 
 
 def test_radar_map_from_tiles(monkeypatch, tmp_path):
