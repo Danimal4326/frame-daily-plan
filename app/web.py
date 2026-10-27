@@ -88,6 +88,16 @@ def ha_test():
     return {'ok': True, 'lists': lists}
 
 
+@app.get('/ha-lists')
+@protected
+def ha_lists():
+    """The to-do lists Home Assistant has, to pick from in the settings."""
+    try:
+        return {'ok': True, 'lists': home_assistant.todo_lists(config.load())}
+    except Exception as e:  # noqa: BLE001
+        return {'ok': False, 'error': f'{type(e).__name__}: {e}'}
+
+
 @app.get('/station-test')
 @protected
 def station_test():
@@ -294,7 +304,7 @@ def save_settings():
         'lon': float(f['lon']) if f.get('lon') else None,
     }
     cfg['home_assistant'] = {'url': f.get('ha_url', '').strip(), 'token': f.get('ha_token', '').strip(),
-                             'todo_lists': [e for e in re.split(r'[\s,]+', f.get('ha_todo_lists', '')) if e.startswith('todo.')]}
+                             'todo_lists': [e for e in dict.fromkeys(f.getlist('ha_todo')) if e.startswith('todo.')]}
     source = f.get('station_source', 'none')
     cfg['station']['source'] = source if source in stations.SOURCES else 'none'
     for name, fields in cfg['station'].items():

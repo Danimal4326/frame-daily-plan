@@ -216,7 +216,7 @@
     <div class="grid">
       <label for="ha_url">{{ t.st_fields.url }}</label><input type="text" id="ha_url" name="ha_url" value="{{ cfg.home_assistant.url }}" placeholder="http://homeassistant.local:8123">
       <label for="ha_token">{{ t.st_fields.token }}</label><input type="password" id="ha_token" name="ha_token" value="{{ cfg.home_assistant.token }}" autocomplete="off">
-      <label for="ha_todo_lists">{{ t.ha_todo_lists }}</label><input type="text" id="ha_todo_lists" name="ha_todo_lists" value="{{ cfg.home_assistant.todo_lists|join(', ') }}" placeholder="todo.apple_reminders">
+      <label>{{ t.ha_todo_lists }}</label><div id="ha-lists" class="row">{% for e in cfg.home_assistant.todo_lists %}<label class="inline"><input type="checkbox" name="ha_todo" value="{{ e }}" checked> {{ e }}</label>{% endfor %}<span class="hint" id="ha-lists-hint">{{ t.ha_lists_hint }}</span></div>
     </div>
     <div class="row" style="margin-top:12px"><button type="button" id="ha-test">{{ t.btn_test }}</button><span class="hint" id="ha-result">{{ t.test_hint }}</span></div>
   </section>
@@ -330,7 +330,28 @@
   function showKey() { pirateKey.style.display = forecast.value === 'pirateweather' ? '' : 'none'; }
   forecast.onchange = showKey; showKey();
   const S = {{ {'testing': t.searching, 'temp': t.st_now_temp, 'rate': t.st_now_rate, 'today': t.st_now_today}|tojson }};
+  const H = {{ {'none': t.ha_lists_none, 'missing': t.ha_missing}|tojson }};
+  function loadLists() {
+    const box = document.getElementById('ha-lists');
+    fetch('{{ url_for("ha_lists") }}').then(r => r.json()).then(d => {
+      if (!d.ok) return;
+      const chosen = new Set([...box.querySelectorAll('input:checked')].map(i => i.value));
+      const known = new Set(d.lists.map(l => l.id));
+      const rows = d.lists.map(l => [l.id, l.name + (l.open == null ? '' : ' (' + l.open + ')')])
+        .concat([...chosen].filter(id => !known.has(id)).map(id => [id, id + ' – ' + H.missing]));
+      box.replaceChildren(...rows.map(([id, text]) => {
+        const label = document.createElement('label'), input = document.createElement('input');
+        label.className = 'inline'; label.title = id;
+        input.type = 'checkbox'; input.name = 'ha_todo'; input.value = id; input.checked = chosen.has(id);
+        label.append(input, ' ' + text);
+        return label;
+      }));
+      if (!rows.length) box.textContent = H.none;
+    }).catch(() => {});
+  }
+  if (document.getElementById('ha_url').value && document.getElementById('ha_token').value) loadLists();
   document.getElementById('ha-test').onclick = () => {
+    loadLists();
     const box = document.getElementById('ha-result'); box.textContent = S.testing;
     fetch('{{ url_for("ha_test") }}').then(r => r.json()).then(d => {
       box.textContent = d.ok ? Object.entries(d.lists).map(([k, v]) => k + ': ' + (Array.isArray(v) ? v.length + ' – ' + v.join(', ') : v)).join(' · ') || 'Home Assistant: ok' : d.error;

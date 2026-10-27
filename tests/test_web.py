@@ -48,13 +48,13 @@ def test_settings_round_trip_units_time_and_station():
     form = {'tv_ip': '192.168.1.50', 'timezone': 'America/Chicago', 'plan_lang': 'en', 'sch0_start': '07:00', 'sch0_end': '10:00',
             'time_format': '12h', 'unit_temperature': 'F', 'unit_rain': 'in', 'cal_count': '0',
             'station_source': 'home_assistant', 'ha_url': 'http://ha:8123', 'ha_token': 'abc',
-            'ha_todo_lists': 'todo.apple_reminders, sensor.not_a_list todo.shopping_list',
+            'ha_todo': ['todo.my_tasks', 'sensor.not_a_list', 'todo.shopping_list', 'todo.my_tasks'],
             'st_home_assistant_temp_entity': 'sensor.outside_weather_temperature', 'st_mqtt_port': '1884'}
     assert client().post('/settings', data=form).status_code == 302
     cfg = config.load()
     assert cfg['time_format'] == '12h' and cfg['units'] == {'temperature': 'F', 'rain': 'in'}
     assert cfg['station']['source'] == 'home_assistant' and cfg['home_assistant']['token'] == 'abc'
-    assert cfg['home_assistant']['todo_lists'] == ['todo.apple_reminders', 'todo.shopping_list']
+    assert cfg['home_assistant']['todo_lists'] == ['todo.my_tasks', 'todo.shopping_list']
     assert cfg['station']['mqtt']['port'] == 1884
     html = client().get('/').get_data(as_text=True)
     assert 'Current conditions' in html and 'Add calendar' in html and 'sensor.outside_weather_temperature' in html
@@ -78,6 +78,8 @@ def test_station_test_reports_errors_as_json():
     config.save(cfg)
     d = client().get('/station-test').get_json()
     assert d['ok'] is False and d['error']
+    d = client().get('/ha-lists').get_json()
+    assert d['ok'] is False and 'address and token' in d['error']
 
 
 def test_any_number_of_calendars_in_one_save():

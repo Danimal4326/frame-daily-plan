@@ -42,13 +42,13 @@ Art Mode is quiet, ad-free and always on the wall, so it's a good place for a fa
 
 ## To-dos from Home Assistant (e.g. Apple Reminders)
 
-Under **Home Assistant** in the web page, enter its address, a long-lived access token (your profile → Security) and one or more to-do lists, e.g. `todo.shopping_list`. Open items due today or earlier, or with no date, go on the plan's to-do list.
+Under **Home Assistant** in the web page, enter its address and a long-lived access token (your profile → Security), save, and tick the to-do lists the plan should show. Open items due today or earlier, or with no date, go on the plan's to-do list.
 
 Apple Reminders has no feed, but an iPhone Shortcut can copy it into a Home Assistant to-do list:
 
 1. In Home Assistant, add a **Local To-do** list (e.g. "Apple Reminders"), a script that makes it match a list of titles (adds new ones, removes the rest), and an automation with a **Webhook** trigger that passes `trigger.json['items']` to the script.
 2. On the iPhone, in **Shortcuts → Automation**, add a **Time of Day** automation (e.g. 6:50, *Run Immediately*) that runs: **Find Reminders** (list, *Is Not Completed*) → **Combine Text** (new lines) → **Get Contents of URL**: `POST` to `http://<home-assistant>:8123/api/webhook/<your webhook id>`, request body JSON, key `items` (text) = the combined text.
-3. Add the list (e.g. `todo.apple_reminders`) to the plan's to-do lists.
+3. Tick that list under **Home Assistant** in the plan's web page.
 
 The webhook only accepts calls from the home network by default, so the copy happens while the phone is at home.
 

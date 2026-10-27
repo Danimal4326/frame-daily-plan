@@ -102,3 +102,16 @@ def test_home_assistant_todo_items(monkeypatch):
                         {'entity_id': 'todo.apple_reminders', 'status': ['needs_action']})
     with pytest.raises(RuntimeError, match='address and token'):
         ha.todo_items({'home_assistant': {}}, 'todo.x', datetime.date(2026, 10, 27))
+
+
+def test_home_assistant_todo_lists(monkeypatch):
+    import home_assistant as ha
+    states = [{'entity_id': 'todo.shopping_list', 'state': '1', 'attributes': {'friendly_name': 'Shopping List'}},
+              {'entity_id': 'sensor.outside_weather_temperature', 'state': '59.4', 'attributes': {}},
+              {'entity_id': 'todo.family_tasks', 'state': 'unavailable', 'attributes': {'friendly_name': 'family Tasks'}},
+              {'entity_id': 'todo.no_name', 'state': '0', 'attributes': {}}]
+    monkeypatch.setattr(ha.requests, 'get', lambda url, **kw: Response(states))
+    assert ha.todo_lists({'home_assistant': {'url': 'http://ha', 'token': 'x'}}) == [
+        {'id': 'todo.family_tasks', 'name': 'family Tasks', 'open': None},
+        {'id': 'todo.shopping_list', 'name': 'Shopping List', 'open': 1},
+        {'id': 'todo.no_name', 'name': 'todo.no_name', 'open': 0}]

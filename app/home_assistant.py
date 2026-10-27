@@ -1,6 +1,6 @@
 """Home Assistant over its REST API, with one address and long-lived token for the whole app:
-sensor states for the weather station, and to-do lists (e.g. Apple Reminders copied there
-by an iPhone Shortcut) for the plan's to-dos."""
+sensor states for the weather station, and to-do lists (e.g. Apple Reminders synced there)
+for the plan's to-dos."""
 import datetime
 
 import requests
@@ -28,6 +28,17 @@ def state(cfg, entity):
     if d['state'] in ('unknown', 'unavailable'):
         raise RuntimeError(f"{entity} is {d['state']}")
     return d['state'], d.get('attributes', {}).get('unit_of_measurement')
+
+
+def todo_lists(cfg):
+    """Every to-do list in Home Assistant, as [{'id', 'name', 'open'}] sorted by name."""
+    url, headers = _connection(cfg)
+    r = requests.get(f'{url}/api/states', headers=headers, timeout=10)
+    r.raise_for_status()
+    lists = [{'id': s['entity_id'], 'name': s.get('attributes', {}).get('friendly_name') or s['entity_id'],
+              'open': int(s['state']) if s['state'].isdigit() else None}
+             for s in r.json() if s['entity_id'].startswith('todo.')]
+    return sorted(lists, key=lambda x: x['name'].casefold())
 
 
 def todo_items(cfg, entity, today):
