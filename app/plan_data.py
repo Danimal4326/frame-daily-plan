@@ -375,9 +375,15 @@ DEMO['en_US'] = {
 }
 
 
+# The demo's stand-in place per language (never the family's own): holidays and radar from here.
+DEMO_PLACE = {'de': ('DE', 'BY', 48.137, 11.575), 'en': ('GB', 'ENG', 51.507, -0.128), 'en_US': ('US', 'NY', 40.713, -74.006)}
+
+
 def demo(cfg, now, lang='en'):
     """Made-up plan for screenshots and videos: no real names, appointments or location."""
     d = DEMO[lang]
+    country, subdiv = DEMO_PLACE[lang][:2]
+    cal = holiday_calendar(dict(cfg, plan_lang=lang, holidays={'country': country, 'subdiv': subdiv}), now.year)
 
     def entries(rows, past_check):
         out = []
@@ -394,4 +400,18 @@ def demo(cfg, now, lang='en'):
     return {'date': now.date().isoformat(), 'lang': lang, 'time_format': cfg.get('time_format', '24h'),
             'today': entries(d['today'], True), 'tomorrow': entries(d['tomorrow'], False), 'todos': d['todos'],
             'weather': in_units(dict(d['weather'], outlook=outlook, main=(cfg.get('weather') or {}).get('main', 'high')), cfg),
+            'holiday_marks': {x.day: holiday_emoji(cal[x]) for x in cal if x.month == now.month and x >= now.date()},
             'errors': []}
+
+
+def demo_radar(data, cfg, lang):
+    """Live radar around the demo's stand-in city (needs the internet, so not part of demo() itself)."""
+    if not (cfg.get('weather') or {}).get('radar', True):
+        return data
+    lat, lon = DEMO_PLACE[lang][2:]
+    try:
+        image, at = radar.fetch(lat, lon, render.RADAR_SIZE, zoneinfo.ZoneInfo(cfg['timezone']))
+        return dict(data, radar={'image': image, 'time': at.strftime('%H:%M'), 'credit': radar.CREDIT})
+    except Exception as e:  # noqa: BLE001  the demo works without it
+        print(f'demo radar: {e}', file=sys.stderr)
+        return data

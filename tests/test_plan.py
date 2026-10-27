@@ -236,3 +236,15 @@ def test_observances_and_month_emoji(tmp_path):
     assert plan_data.holiday_emoji('Thanksgiving Day') == '🦃' and plan_data.holiday_emoji('Erster Weihnachtstag') == '🎄'
     assert plan_data.holiday_emoji('Casimir Pulaski Day') == '⭐'
     render.render(dict(data, background=None), str(tmp_path / 'marks.jpg'))
+
+
+def test_demo_has_stand_in_holidays_and_radar(monkeypatch):
+    now = datetime.datetime(2026, 10, 26, 8, tzinfo=TZ)
+    assert plan_data.demo(CFG, now, 'en_US')['holiday_marks'] == {31: '🎃'}
+    assert plan_data.demo(CFG, now, 'de')['holiday_marks'] == {}
+    import radar
+    monkeypatch.setattr(radar, 'fetch', lambda lat, lon, size, tz: (Image.new('RGBA', size), now))
+    data = plan_data.demo_radar(plan_data.demo(CFG, now, 'en_US'), CFG, 'en_US')
+    assert data['radar']['time'] == '08:00'
+    off = dict(CFG, weather={'radar': False})
+    assert 'radar' not in plan_data.demo_radar(plan_data.demo(off, now, 'en'), off, 'en')

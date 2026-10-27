@@ -165,7 +165,7 @@ def show_plan(cfg):
 
 def show_demo(cfg, lang='en', on_tv=True):
     """Made-up plan (no real data) for sharing; shown like a plan."""
-    data = plan_data.demo(cfg, now_local(cfg), lang)
+    data = plan_data.demo_radar(plan_data.demo(cfg, now_local(cfg), lang), cfg, lang)
     if not on_tv:
         render.render(data, PREVIEW, cached_artwork(cfg, load_state()))
         return
