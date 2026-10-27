@@ -49,6 +49,7 @@ LABELS['en_US'] = {**LABELS['en'], 'initials': 'SMTWTFS', 'first_weekday': calen
 SCALES = [round(1 - 0.05 * i, 2) for i in range(10)]
 CENTER_HEAD = 175  # where the events start below the panel title
 TOMORROW_HEAD = 160  # the line and "Tomorrow" between the two days (scaled with the events)
+TODO_ROW = 125  # one to-do line at full size; longer lists shrink like the events
 RADAR_TOP = 1320  # the radar map fills the bottom of the right column
 RADAR_SIZE = (W - M - 2570, H - M - RADAR_TOP)
 
@@ -262,6 +263,14 @@ def today_and_tomorrow(d, today, tomorrow, x, top, w, bottom):
     return scale
 
 
+def todo_scale(n, room):
+    """The largest scale at which n to-do lines fit, and how many fit at it."""
+    for scale in SCALES:
+        if n * TODO_ROW * scale <= room:
+            return scale, n
+    return SCALES[-1], int(room // (TODO_ROW * SCALES[-1]))
+
+
 def render(day, out, background_path=None):
     global L, TWELVE_HOUR
     L = LABELS.get(day.get('lang', 'de'), LABELS['de'])
@@ -279,8 +288,11 @@ def render(day, out, background_path=None):
     side = bool(wx or radar)
     today, tomorrow = day.get('today', []), day.get('tomorrow', [])
     ew = c2[1] - c2[0] - 140
-    panel(layer, (c1[0], top, c1[1], 1300))
-    panel(layer, (c1[0], 1350, c1[1], bottom), day.get('todo_title', L['todos']))
+    # The month takes 4 to 6 week rows; the ones it doesn't need go to the to-dos below it.
+    weeks = len(calendar.Calendar(L.get('first_weekday', calendar.MONDAY)).monthdayscalendar(date.year, date.month))
+    month_bottom = 1300 - 86 * (6 - weeks)
+    panel(layer, (c1[0], top, c1[1], month_bottom))
+    panel(layer, (c1[0], month_bottom + 50, c1[1], bottom), day.get('todo_title', L['todos']))
     if side:
         panel(layer, (c2[0], M, c2[1], bottom), day.get('today_title', L['today']))
         panel(layer, (c3[0], M, c3[1], 820))
@@ -301,21 +313,25 @@ def render(day, out, background_path=None):
     month(im, d, date, c1[0] + 70, top + 50, c1[1] - c1[0] - 140, day.get('holiday_marks'))
 
     # To-dos with empty boxes.
-    y = 1505
+    y = month_bottom + 205
     if not day.get('todos'):
         d.text((c1[0] + 70, y), L['no_todos'], font=font(70, 'Medium'), fill=DIM)
     todos = day.get('todos', [])
-    fits = (bottom - 40 - y) // 125
+    scale, fits = todo_scale(len(todos), bottom - 40 - y)
     if len(todos) > fits:
         todos = todos[:fits - 1] + [L['more_todos'].format(len(todos) - fits + 1)]
+    row, box = round(TODO_ROW * scale), round(85 * scale)
     # One size for the whole list, shrunk until the longest item fits inside the panel.
-    size, max_w = 80, c1[1] - (c1[0] + 195) - 50
-    while size > 52 and any(d.textlength(t, font=font(size, 'Medium')) > max_w for t in todos):
+    text_x = c1[0] + 70 + box + round(40 * scale)
+    size, max_w = round(80 * scale), c1[1] - text_x - 50
+    while size > round(52 * scale) and any(d.textlength(t, font=font(size, 'Medium')) > max_w for t in todos):
         size -= 2
     for todo in todos:
-        d.rounded_rectangle([c1[0] + 70, y + 10, c1[0] + 155, y + 95], radius=18, outline=ORANGE, width=9)
-        d.text((c1[0] + 195, y + (80 - size) // 2), todo, font=font(size, 'Medium'), fill=CREAM)
-        y += 125
+        top_y = y + round(10 * scale)
+        d.rounded_rectangle([c1[0] + 70, top_y, c1[0] + 70 + box, top_y + box], radius=round(18 * scale), outline=ORANGE,
+                            width=max(5, round(9 * scale)))
+        d.text((text_x, top_y + box // 2), todo, font=font(size, 'Medium'), fill=CREAM, anchor='lm')
+        y += row
 
     if side:
         today_and_tomorrow(d, today, tomorrow, c2[0] + 70, M + CENTER_HEAD, ew, bottom - 30)
