@@ -280,7 +280,8 @@ def save_settings():
             for key, old in fields.items():
                 value = str(f.get(f'st_{name}_{key}', old)).strip()
                 fields[key] = (int(value) if value.isdigit() else 1883) if key == 'port' else value
-    cfg['holidays'] = {'country': f.get('hol_country', '').strip().upper(), 'subdiv': f.get('hol_subdiv', '').strip().upper()}
+    cfg['holidays'] = {'country': f.get('hol_country', '').strip().upper(), 'subdiv': f.get('hol_subdiv', '').strip().upper(),
+                       'observances': 'hol_observances' in f}
     cfg['dim_past_events'] = 'dim_past_events' in f
     cfg['background'] = f.get('background', 'artwork')
     calendars = []

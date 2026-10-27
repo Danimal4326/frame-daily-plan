@@ -205,7 +205,8 @@
       <label>{{ t.holidays }}</label><div class="row">{{ t.country }}
         <select name="hol_country" id="hol_country" style="width:110px"><option value="">–</option>{% for c in countries %}<option value="{{ c }}" {{ 'selected' if cfg.holidays.country == c }}>{{ c }}</option>{% endfor %}</select>
         {{ t.region }} <select name="hol_subdiv" id="hol_subdiv" data-current="{{ cfg.holidays.subdiv }}" style="width:130px"><option value="">–</option></select>
-        <span class="hint">{{ t.holidays_hint }}</span></div>
+        <span class="hint">{{ t.holidays_hint }}</span>
+        <label class="inline"><input type="checkbox" name="hol_observances" {% if cfg.holidays.observances %}checked{% endif %}> {{ t.observances }}</label></div>
     </div>
   </section>
 

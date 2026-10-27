@@ -223,3 +223,14 @@ def test_big_temperature_choice():
 def test_clear_night_is_not_sunny():
     assert plan_data.at_night({'icon': '☀️', 'text': ('Sonnig', 'Sunny')}) == {'icon': '🌙', 'text': ('Klar', 'Clear')}
     assert plan_data.at_night({'icon': '🌧️', 'text': ('Regen', 'Rain')})['icon'] == '🌧️'
+
+
+def test_observances_and_month_rings(tmp_path):
+    cfg = dict(CFG, plan_lang='en_US', holidays={'country': 'US', 'subdiv': 'IL', 'observances': True})
+    halloween = datetime.date(2026, 10, 31)
+    assert plan_data.holiday_entries(cfg, halloween, plan_data.WORDS['en_US'])[0]['title'] == 'Halloween'
+    off = dict(cfg, holidays=dict(cfg['holidays'], observances=False))
+    assert plan_data.holiday_entries(off, halloween, plan_data.WORDS['en_US']) == []
+    data = plan_data.build(cfg, datetime.datetime(2026, 10, 12, 8, tzinfo=TZ))  # Columbus Day is today, not "upcoming"
+    assert data['holiday_days'] == [31]
+    render.render(dict(data, background=None), str(tmp_path / 'rings.jpg'))

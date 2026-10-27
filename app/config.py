@@ -16,7 +16,7 @@ DEFAULTS = {
     # forecast from "open_meteo" (no key) or "pirateweather" (free key from pirateweather.net)
     'weather': {'enabled': True, 'name': '', 'lat': None, 'lon': None, 'radar': True, 'source': 'open_meteo',
                 'pirateweather_key': '', 'main': 'high'},  # main: the big number, "high" (today's) or "now"
-    'holidays': {'country': '', 'subdiv': ''},
+    'holidays': {'country': '', 'subdiv': '', 'observances': True},  # observances: also Halloween, Valentine's Day, …
     # time windows for the plan, e.g. a morning one every day and an evening one on weekdays
     'schedules': [{'name': 'Morning', 'enabled': True, 'start': '07:00', 'end': '10:00', 'days': [0, 1, 2, 3, 4, 5, 6]}],
     'dim_past_events': True,

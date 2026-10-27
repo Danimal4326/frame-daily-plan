@@ -61,7 +61,7 @@ TEXT = {
         'fc_open_meteo': 'Open-Meteo (ohne Schlüssel)', 'fc_pirateweather': 'Pirate Weather (kostenloser API-Key)',
         'pirateweather_key': 'Pirate-Weather-API-Key', 'show_radar': 'Regenradar-Karte (RainViewer)',
         'place': 'Ort', 'lat_lon': 'Breite / Länge', 'holidays': 'Feiertage', 'country': 'Land', 'region': 'Region',
-        'holidays_hint': 'leer = keine Feiertage',
+        'holidays_hint': 'leer = keine Feiertage', 'observances': 'auch inoffizielle Tage (z. B. Halloween, Valentinstag), wo bekannt',
         'btn_save': 'Einstellungen speichern', 'log': 'Protokoll', 'log_empty': 'Noch keine Einträge',
         # messages after an action
         'done': 'erledigt', 'failed': 'fehlgeschlagen',
@@ -132,7 +132,7 @@ TEXT = {
         'fc_open_meteo': 'Open-Meteo (no key needed)', 'fc_pirateweather': 'Pirate Weather (free API key)',
         'pirateweather_key': 'Pirate Weather API key', 'show_radar': 'rain radar map (RainViewer)',
         'place': 'Place', 'lat_lon': 'Latitude / longitude', 'holidays': 'Public holidays', 'country': 'Country', 'region': 'Region',
-        'holidays_hint': 'empty = no holidays',
+        'holidays_hint': 'empty = no holidays', 'observances': "also unofficial days (e.g. Halloween, Valentine's Day), where known",
         'btn_save': 'Save settings', 'log': 'Log', 'log_empty': 'No entries yet',
         'done': 'done', 'failed': 'failed',
         'a_preview': 'Preview', 'a_show': 'Show plan', 'a_restore': 'Back to artwork', 'a_upload': 'Upload picture',

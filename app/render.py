@@ -200,7 +200,7 @@ def radar_map(im, radar, box):
     im.alpha_composite(overlay)
 
 
-def month(d, date, x, y, w):
+def month(d, date, x, y, w, holiday_days=()):
     d.text((x, y), L['months'][date.month - 1], font=font(72, 'DemiBold'), fill=CREAM)
     cw = w / 7
     y += 110
@@ -216,6 +216,8 @@ def month(d, date, x, y, w):
             cx, cy = x + cw * i + cw / 2, y + 34
             if day == date.day:
                 d.ellipse([cx - 46, cy - 46, cx + 46, cy + 46], fill=ORANGE)
+            elif day in holiday_days:  # an upcoming holiday: a ring in the holidays' colour
+                d.ellipse([cx - 44, cy - 44, cx + 44, cy + 44], outline=COLORS['red'], width=6)
             d.text((cx, cy), str(day), font=font(58, 'DemiBold' if day == date.day else 'Medium'),
                    fill=SOFT if weekend and day != date.day else CREAM, anchor='mm')
         y += 86
@@ -296,7 +298,7 @@ def render(day, out, background_path=None):
     # Date, top left.
     d.text((c1[0] + 10, M - 20), L['weekdays'][date.weekday()], font=font(190, 'Bold'), fill=CREAM)
     d.text((c1[0] + 14, M + 220), L['date'].format(day=date.day, month=L['months'][date.month - 1]), font=font(96, 'Medium'), fill=SOFT)
-    month(d, date, c1[0] + 70, top + 50, c1[1] - c1[0] - 140)
+    month(d, date, c1[0] + 70, top + 50, c1[1] - c1[0] - 140, day.get('holiday_days', ()))
 
     # To-dos with empty boxes.
     y = 1505

@@ -94,7 +94,12 @@ def holiday_calendar(cfg, year):
     # Use the plan language if the country's holiday data has it, otherwise its default names.
     lang, known = cfg.get('plan_lang', 'en'), getattr(cal, 'supported_languages', ()) or ()
     pick = lang if lang in known else next((code for code in known if code.split('_')[0] == lang.split('_')[0]), None)
-    return holidays.country_holidays(h['country'], subdiv=subdiv, years=year, language=pick) if pick else cal
+    # "Unofficial" days such as Halloween or Valentine's Day, where the country's data has them.
+    extra = h.get('observances', True) and 'unofficial' in (getattr(cal, 'supported_categories', ()) or ())
+    if not pick and not extra:
+        return cal
+    return holidays.country_holidays(h['country'], subdiv=subdiv, years=year, language=pick,
+                                     categories=('public', 'unofficial') if extra else ('public',))
 
 
 def holiday_entries(cfg, day, w):
@@ -243,8 +248,10 @@ def build(cfg, now):
     errors = []
     try:
         events, events_tomorrow = holiday_entries(cfg, today, w), holiday_entries(cfg, tomorrow, w)
+        # upcoming holidays this month, ringed in the month calendar
+        holiday_days = sorted(d.day for d in holiday_calendar(cfg, today.year) if d.month == today.month and d > today)
     except Exception as e:  # noqa: BLE001  e.g. an unknown country code
-        events, events_tomorrow = [], []
+        events, events_tomorrow, holiday_days = [], [], []
         errors.append(f'Holidays: {e}')
     todos = []
     for c in cfg['calendars']:
@@ -266,7 +273,8 @@ def build(cfg, now):
     for e in events:
         e['past'] = bool(cfg.get('dim_past_events')) and e['end_dt'] is not None and e['end_dt'] <= now
     data = {'date': today.isoformat(), 'lang': cfg.get('plan_lang', 'en'), 'time_format': cfg.get('time_format', '24h'),
-            'today': events, 'tomorrow': events_tomorrow, 'todos': sorted(set(todos)), 'weather': None, 'errors': errors}
+            'today': events, 'tomorrow': events_tomorrow, 'todos': sorted(set(todos)), 'weather': None, 'errors': errors,
+            'holiday_days': holiday_days}
     loc = cfg.get('weather') or {}
     if loc.get('enabled') and loc.get('lat') is not None and loc.get('lon') is not None:
         try:
