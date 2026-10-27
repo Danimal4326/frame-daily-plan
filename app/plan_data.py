@@ -102,6 +102,26 @@ def holiday_calendar(cfg, year):
                                      categories=('public', 'unofficial') if extra else ('public',))
 
 
+# A clue for each holiday in the month calendar, from words in its English or German name; first match wins.
+HOLIDAY_EMOJI = [
+    (('halloween',), '🎃'), (('thanksgiving',), '🦃'), (('christmas', 'weihnacht', 'boxing'), '🎄'),
+    (('new year', 'neujahr'), '🎆'), (('independence day',), '🎆'), (('juneteenth',), '✊'),
+    (('valentine',), '❤️'), (('patrick',), '☘️'), (('easter', 'oster'), '🐣'), (('good friday', 'karfreitag'), '✝️'),
+    (('whit', 'pfingst', 'pentecost'), '🕊️'), (('ascension', 'himmelfahrt', 'corpus christi', 'fronleichnam',
+                                                 'assumption', 'mariä', 'reformation'), '⛪'),
+    (('epiphany', 'drei könige'), '👑'), (('all saints', 'allerheiligen'), '🕯️'),
+    (('veterans', 'memorial', 'remembrance'), '🎖️'), (('labor', 'labour', 'may day', 'erster mai', 'arbeit'), '🛠️'),
+    (('mother', 'mutter'), '💐'), (('father', 'vater'), '👔'), (('election',), '🗳️'), (('columbus', 'indigenous'), '⛵'),
+    (('martin luther king',), '🕊️'), (('washington', 'lincoln', 'president'), '🎩'), (('groundhog',), '🦫'),
+    (('unity', 'einheit'), '🎉'), (('bank holiday',), '🏖️'),
+]
+
+
+def holiday_emoji(name):
+    name = name.lower()
+    return next((icon for words, icon in HOLIDAY_EMOJI if any(w in name for w in words)), '⭐')
+
+
 def holiday_entries(cfg, day, w):
     cal = holiday_calendar(cfg, day.year)
     if day not in cal:
@@ -248,10 +268,11 @@ def build(cfg, now):
     errors = []
     try:
         events, events_tomorrow = holiday_entries(cfg, today, w), holiday_entries(cfg, tomorrow, w)
-        # upcoming holidays this month, ringed in the month calendar
-        holiday_days = sorted(d.day for d in holiday_calendar(cfg, today.year) if d.month == today.month and d > today)
+        # today's and the coming holidays this month, each marked with an emoji in the month calendar
+        cal = holiday_calendar(cfg, today.year)
+        holiday_marks = {d.day: holiday_emoji(cal[d]) for d in cal if d.month == today.month and d >= today}
     except Exception as e:  # noqa: BLE001  e.g. an unknown country code
-        events, events_tomorrow, holiday_days = [], [], []
+        events, events_tomorrow, holiday_marks = [], [], {}
         errors.append(f'Holidays: {e}')
     todos = []
     for c in cfg['calendars']:
@@ -274,7 +295,7 @@ def build(cfg, now):
         e['past'] = bool(cfg.get('dim_past_events')) and e['end_dt'] is not None and e['end_dt'] <= now
     data = {'date': today.isoformat(), 'lang': cfg.get('plan_lang', 'en'), 'time_format': cfg.get('time_format', '24h'),
             'today': events, 'tomorrow': events_tomorrow, 'todos': sorted(set(todos)), 'weather': None, 'errors': errors,
-            'holiday_days': holiday_days}
+            'holiday_marks': holiday_marks}
     loc = cfg.get('weather') or {}
     if loc.get('enabled') and loc.get('lat') is not None and loc.get('lon') is not None:
         try:
