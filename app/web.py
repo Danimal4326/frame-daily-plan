@@ -19,6 +19,7 @@ import holidays  # noqa: E402
 import config  # noqa: E402
 import i18n  # noqa: E402
 import plan_data  # noqa: E402
+import home_assistant  # noqa: E402
 import jobs  # noqa: E402
 import stations  # noqa: E402
 import tv  # noqa: E402
@@ -66,6 +67,25 @@ def discover():
 @protected
 def geocode():
     return {'results': plan_data.geocode(request.args.get('q', ''), config.load().get('ui_lang', 'en').split('_')[0])}
+
+
+@app.get('/ha-test')
+@protected
+def ha_test():
+    """Home Assistant reachable? And what the plan would take from each to-do list today."""
+    cfg = config.load()
+    try:
+        home_assistant.ping(cfg)
+    except Exception as e:  # noqa: BLE001
+        return {'ok': False, 'error': f'{type(e).__name__}: {e}'}
+    today = jobs.now_local(cfg).date()
+    lists = {}
+    for entity in cfg['home_assistant'].get('todo_lists') or []:
+        try:
+            lists[entity] = home_assistant.todo_items(cfg, entity, today)
+        except Exception as e:  # noqa: BLE001
+            lists[entity] = f'{type(e).__name__}: {e}'
+    return {'ok': True, 'lists': lists}
 
 
 @app.get('/station-test')
@@ -273,6 +293,8 @@ def save_settings():
         'lat': float(f['lat']) if f.get('lat') else None,
         'lon': float(f['lon']) if f.get('lon') else None,
     }
+    cfg['home_assistant'] = {'url': f.get('ha_url', '').strip(), 'token': f.get('ha_token', '').strip(),
+                             'todo_lists': [e for e in re.split(r'[\s,]+', f.get('ha_todo_lists', '')) if e.startswith('todo.')]}
     source = f.get('station_source', 'none')
     cfg['station']['source'] = source if source in stations.SOURCES else 'none'
     for name, fields in cfg['station'].items():

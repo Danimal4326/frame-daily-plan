@@ -40,6 +40,18 @@ Art Mode is quiet, ad-free and always on the wall, so it's a good place for a fa
 - **Demo plan** with made-up data, for photos and videos.
 - Past events turn grey. Long titles shrink to fit and are never cut off.
 
+## To-dos from Home Assistant (e.g. Apple Reminders)
+
+Under **Home Assistant** in the web page, enter its address, a long-lived access token (your profile → Security) and one or more to-do lists, e.g. `todo.shopping_list`. Open items due today or earlier, or with no date, go on the plan's to-do list.
+
+Apple Reminders has no feed, but an iPhone Shortcut can copy it into a Home Assistant to-do list:
+
+1. In Home Assistant, add a **Local To-do** list (e.g. "Apple Reminders"), a script that makes it match a list of titles (adds new ones, removes the rest), and an automation with a **Webhook** trigger that passes `trigger.json['items']` to the script.
+2. On the iPhone, in **Shortcuts → Automation**, add a **Time of Day** automation (e.g. 6:50, *Run Immediately*) that runs: **Find Reminders** (list, *Is Not Completed*) → **Combine Text** (new lines) → **Get Contents of URL**: `POST` to `http://<home-assistant>:8123/api/webhook/<your webhook id>`, request body JSON, key `items` (text) = the combined text.
+3. Add the list (e.g. `todo.apple_reminders`) to the plan's to-do lists.
+
+The webhook only accepts calls from the home network by default, so the copy happens while the phone is at home.
+
 ## Requirements
 
 - **A Samsung The Frame** on your home network. 2017/2018 Frames and newer ones upload differently; the app picks the right way from the TV's art API version. Please report your model (see Compatibility below).

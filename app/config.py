@@ -21,12 +21,14 @@ DEFAULTS = {
     'schedules': [{'name': 'Morning', 'enabled': True, 'start': '07:00', 'end': '10:00', 'days': [0, 1, 2, 3, 4, 5, 6]}],
     'dim_past_events': True,
     'background': 'artwork',  # "artwork": the picture the plan replaces, "default": bundled background
+    # Home Assistant for the weather station's sensors and for to-do lists (e.g. Apple Reminders copied there)
+    'home_assistant': {'url': '', 'token': '', 'todo_lists': []},
     'units': {'temperature': 'C', 'rain': 'mm'},
     'time_format': '24h',  # or "12h"
     # current conditions from a weather station, on top of the Open-Meteo forecast
     'station': {
         'source': 'none',  # none, home_assistant, mqtt, ambient, wunderground
-        'home_assistant': {'url': '', 'token': '', 'temp_entity': '', 'rain_rate_entity': '', 'rain_today_entity': ''},
+        'home_assistant': {'temp_entity': '', 'rain_rate_entity': '', 'rain_today_entity': ''},
         'mqtt': {'host': '', 'port': 1883, 'username': '', 'password': '', 'temp_topic': '', 'rain_rate_topic': '',
                  'rain_today_topic': '', 'json_key': '', 'temp_unit': 'C', 'rain_unit': 'mm'},
         'ambient': {'api_key': '', 'application_key': '', 'mac': ''},
@@ -54,6 +56,9 @@ def load():
             stored = json.load(f)
         if 'schedule' in stored and 'schedules' not in stored:  # one schedule, before there could be several
             stored['schedules'] = [{'name': 'Morning', **stored.pop('schedule')}]
+        old_ha = (stored.get('station') or {}).get('home_assistant') or {}
+        if 'home_assistant' not in stored and old_ha.get('url'):  # the station's own connection, before it was shared
+            stored['home_assistant'] = {'url': old_ha['url'], 'token': old_ha.get('token', '')}
         merge(cfg, stored)
     return cfg
 

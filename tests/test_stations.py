@@ -30,15 +30,16 @@ def test_home_assistant_converts_by_unit(monkeypatch):
     states = {'sensor.t': ('59.0', '°F'), 'sensor.rate': ('0.1', 'in'), 'sensor.day': ('2.0', 'mm')}
     monkeypatch.setattr(stations.requests, 'get', lambda url, **kw: Response(
         {'state': states[url.rsplit('/', 1)[1]][0], 'attributes': {'unit_of_measurement': states[url.rsplit('/', 1)[1]][1]}}))
-    r = stations.read(station_cfg('home_assistant', url='http://ha:8123/', token='x', temp_entity='sensor.t',
-                                  rain_rate_entity='sensor.rate', rain_today_entity='sensor.day'))
+    cfg = station_cfg('home_assistant', temp_entity='sensor.t', rain_rate_entity='sensor.rate', rain_today_entity='sensor.day')
+    cfg['home_assistant'] = {'url': 'http://ha:8123/', 'token': 'x'}
+    r = stations.read(cfg)
     assert r == pytest.approx({'temp_c': 15.0, 'rain_rate_mm_h': 2.54, 'rain_today_mm': 2.0})
 
 
 def test_home_assistant_unavailable_is_an_error(monkeypatch):
     monkeypatch.setattr(stations.requests, 'get', lambda url, **kw: Response({'state': 'unavailable', 'attributes': {}}))
     with pytest.raises(RuntimeError, match='unavailable'):
-        stations.read(station_cfg('home_assistant', url='http://ha', token='x', temp_entity='sensor.t'))
+        stations.read(dict(station_cfg('home_assistant', temp_entity='sensor.t'), home_assistant={'url': 'http://ha', 'token': 'x'}))
 
 
 def test_ambient_and_wunderground(monkeypatch):
@@ -82,3 +83,22 @@ def test_open_meteo_current_conditions(monkeypatch):
     cfg = station_cfg('open_meteo')
     cfg['weather'].update(lat=30.27, lon=-97.74)
     assert stations.read(cfg) == pytest.approx({'temp_c': 21.3, 'rain_rate_mm_h': 0.8, 'rain_today_mm': 1.5})
+
+
+def test_home_assistant_todo_items(monkeypatch):
+    import datetime
+    import home_assistant as ha
+    items = [{'summary': 'Buy milk', 'status': 'needs_action'}, {'summary': 'Dentist', 'due': '2026-10-26'},
+             {'summary': 'Taxes', 'due': '2026-10-28T09:00:00-05:00'}, {'summary': '  ', 'due': None}]
+    calls = []
+
+    def post(url, **kw):
+        calls.append((url, kw['json']))
+        return Response({'service_response': {'todo.apple_reminders': {'items': items}}})
+    monkeypatch.setattr(ha.requests, 'post', post)
+    cfg = {'home_assistant': {'url': 'http://ha:8123/', 'token': 'x', 'todo_lists': ['todo.apple_reminders']}}
+    assert ha.todo_items(cfg, 'todo.apple_reminders', datetime.date(2026, 10, 27)) == ['Buy milk', 'Dentist']
+    assert calls[0] == ('http://ha:8123/api/services/todo/get_items?return_response',
+                        {'entity_id': 'todo.apple_reminders', 'status': ['needs_action']})
+    with pytest.raises(RuntimeError, match='address and token'):
+        ha.todo_items({'home_assistant': {}}, 'todo.x', datetime.date(2026, 10, 27))

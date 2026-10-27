@@ -10,6 +10,7 @@ import holidays
 import icalendar
 import recurring_ical_events
 
+import home_assistant as ha
 import radar
 import render
 import stations
@@ -289,6 +290,11 @@ def build(cfg, now):
         events += e1
         todos += t1
         events_tomorrow += e2
+    for entity in (cfg.get('home_assistant') or {}).get('todo_lists') or []:
+        try:
+            todos += ha.todo_items(cfg, entity, today)
+        except Exception as e:  # noqa: BLE001  like a broken calendar: the rest still shows
+            errors.append(f'To-do list {entity}: {e}')
     events.sort(key=lambda e: e['sort'])
     events_tomorrow.sort(key=lambda e: e['sort'])
     for e in events:

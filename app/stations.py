@@ -14,6 +14,7 @@ import paho.mqtt.client as mqtt
 import requests
 
 import config
+import home_assistant as ha
 
 SOURCES = ['none', 'open_meteo', 'home_assistant', 'mqtt', 'ambient', 'wunderground']
 MAX_AGE = 15 * 60  # older MQTT values are ignored: the station is probably offline
@@ -59,20 +60,14 @@ def open_meteo(cfg):
             'rain_today_mm': d['daily']['precipitation_sum'][0]}
 
 
-def home_assistant(s):
-    url, headers = s['url'].rstrip('/'), {'Authorization': f"Bearer {s['token']}"}
+def home_assistant(cfg):
+    """The station's sensors in Home Assistant (its address and token are the app's Home Assistant settings)."""
+    s = cfg['station']['home_assistant']
 
-    def state(entity, convert):
-        if not entity:
-            return None
-        r = requests.get(f'{url}/api/states/{entity}', headers=headers, timeout=10)
-        r.raise_for_status()
-        d = r.json()
-        if d['state'] in ('unknown', 'unavailable'):
-            raise RuntimeError(f"{entity} is {d['state']}")
-        return convert(d['state'], d.get('attributes', {}).get('unit_of_measurement'))
-    return {'temp_c': state(s['temp_entity'], to_c), 'rain_rate_mm_h': state(s['rain_rate_entity'], to_mm),
-            'rain_today_mm': state(s['rain_today_entity'], to_mm)}
+    def value(entity, convert):
+        return convert(*ha.state(cfg, entity)) if entity else None
+    return {'temp_c': value(s['temp_entity'], to_c), 'rain_rate_mm_h': value(s['rain_rate_entity'], to_mm),
+            'rain_today_mm': value(s['rain_today_entity'], to_mm)}
 
 
 def ambient(s):
@@ -157,9 +152,9 @@ def read(cfg):
     if source == 'mqtt':
         mqtt_sync(cfg)
         return mqtt_reading(st['mqtt'])
-    if source == 'open_meteo':
-        return open_meteo(cfg)
-    fn = {'home_assistant': home_assistant, 'ambient': ambient, 'wunderground': wunderground}.get(source)
+    if source in ('open_meteo', 'home_assistant'):
+        return {'open_meteo': open_meteo, 'home_assistant': home_assistant}[source](cfg)
+    fn = {'ambient': ambient, 'wunderground': wunderground}.get(source)
     return fn(st[source]) if fn else None
 
 

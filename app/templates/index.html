@@ -211,11 +211,21 @@
   </section>
 
   <section class="card">
+    <h2>Home Assistant</h2>
+    <p class="hint">{{ t.ha_hint }}</p>
+    <div class="grid">
+      <label for="ha_url">{{ t.st_fields.url }}</label><input type="text" id="ha_url" name="ha_url" value="{{ cfg.home_assistant.url }}" placeholder="http://homeassistant.local:8123">
+      <label for="ha_token">{{ t.st_fields.token }}</label><input type="password" id="ha_token" name="ha_token" value="{{ cfg.home_assistant.token }}" autocomplete="off">
+      <label for="ha_todo_lists">{{ t.ha_todo_lists }}</label><input type="text" id="ha_todo_lists" name="ha_todo_lists" value="{{ cfg.home_assistant.todo_lists|join(', ') }}" placeholder="todo.apple_reminders">
+    </div>
+    <div class="row" style="margin-top:12px"><button type="button" id="ha-test">{{ t.btn_test }}</button><span class="hint" id="ha-result">{{ t.test_hint }}</span></div>
+  </section>
+
+  <section class="card">
     <h2>{{ t.station }}</h2>
     <p class="hint">{{ t.station_hint }}</p>
     {% set station_fields = {
-      'home_assistant': [('url', 'text', 'http://homeassistant.local:8123'), ('token', 'password', ''),
-                         ('temp_entity', 'text', 'sensor.outside_temperature'), ('rain_rate_entity', 'text', 'sensor.outside_rain_rate'),
+      'home_assistant': [('temp_entity', 'text', 'sensor.outside_temperature'), ('rain_rate_entity', 'text', 'sensor.outside_rain_rate'),
                          ('rain_today_entity', 'text', 'sensor.outside_daily_rain')],
       'mqtt': [('host', 'text', '192.168.1.10'), ('port', 'number', '1883'), ('username', 'text', ''), ('password', 'password', ''),
                ('temp_topic', 'text', 'homeassistant/sensor/…/temp/state'), ('rain_rate_topic', 'text', ''), ('rain_today_topic', 'text', ''),
@@ -320,6 +330,12 @@
   function showKey() { pirateKey.style.display = forecast.value === 'pirateweather' ? '' : 'none'; }
   forecast.onchange = showKey; showKey();
   const S = {{ {'testing': t.searching, 'temp': t.st_now_temp, 'rate': t.st_now_rate, 'today': t.st_now_today}|tojson }};
+  document.getElementById('ha-test').onclick = () => {
+    const box = document.getElementById('ha-result'); box.textContent = S.testing;
+    fetch('{{ url_for("ha_test") }}').then(r => r.json()).then(d => {
+      box.textContent = d.ok ? Object.entries(d.lists).map(([k, v]) => k + ': ' + (Array.isArray(v) ? v.length + ' – ' + v.join(', ') : v)).join(' · ') || 'Home Assistant: ok' : d.error;
+    }).catch(e => { box.textContent = String(e); });
+  };
   document.getElementById('station-test').onclick = () => {
     const box = document.getElementById('station-result'); box.textContent = S.testing;
     fetch('{{ url_for("station_test") }}').then(r => r.json()).then(d => {
