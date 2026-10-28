@@ -67,6 +67,27 @@ def get_thumbnail(a, content_id):
     return bytes(data)
 
 
+def slideshow(a):
+    """The TV's own slideshow as {'value', 'category_id', 'type'}, or None when it is off
+    (or the TV does not answer; older art APIs may not know the request)."""
+    try:
+        s = a.get_slideshow_status()
+    except Exception:  # noqa: BLE001
+        return None
+    if not s or s.get('value') in (None, '', 'off'):
+        return None
+    return {k: s.get(k, '') for k in ('value', 'category_id', 'type')}
+
+
+def stop_slideshow(a):
+    a.set_slideshow_status(0)
+
+
+def start_slideshow(a, s):
+    """Turn the slideshow back on exactly as slideshow() read it (interval, folder, shuffle)."""
+    a._slideshow_request('set', dict(s))
+
+
 def status(ip):
     a = connect(ip)
     return {'art_mode': a.get_artmode(), 'current': (a.get_current() or {}).get('content_id')}

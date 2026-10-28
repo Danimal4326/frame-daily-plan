@@ -5,6 +5,7 @@ Optional protection: set FRAME_PLAN_PASSWORD; the browser then asks for it (any 
 import functools
 import os
 import re
+import signal
 import sys
 import threading
 import zoneinfo
@@ -51,10 +52,12 @@ def index():
     lang = cfg.get('ui_lang', 'en')
     setup = {'tv': bool(cfg.get('tv_ip')), 'paired': os.path.exists(os.path.join(config.DATA, 'paired')),
              'place': cfg['weather'].get('lat') is not None, 'calendar': bool(cfg['calendars'])}
-    return render_template('index.html', cfg=cfg, state=jobs.load_state(), log=list(jobs.recent)[-40:][::-1],
+    state = jobs.load_state()
+    return render_template('index.html', cfg=cfg, state=state, log=list(jobs.recent)[-40:][::-1],
                            colors=config.COLORS, sources=stations.SOURCES, langs=i18n.LANGS, lang=lang, t=i18n.texts(lang), setup=setup,
                            setup_done=all(setup.values()), countries=sorted(holidays.list_supported_countries()),
-                           has_preview=os.path.exists(jobs.PREVIEW), message=request.args.get('msg'))
+                           has_preview=os.path.exists(jobs.PREVIEW), message=request.args.get('msg'),
+                           restore_thumb=bool(state.get('restore_id')) and os.path.exists(jobs.art_path(state['restore_id'])))
 
 
 @app.get('/discover')
@@ -197,6 +200,16 @@ def preview_image():
     return send_file(jobs.PREVIEW, mimetype='image/jpeg', max_age=0)
 
 
+@app.get('/art/<content_id>.jpg')
+@protected
+def art_thumbnail(content_id):
+    """The cached thumbnail of an artwork on the TV (the one the plan returns to)."""
+    path = jobs.art_path(content_id)
+    if not re.fullmatch(r'[A-Za-z0-9_-]+', content_id) or not os.path.exists(path):
+        return Response('Not found', 404)
+    return send_file(path, mimetype='image/jpeg')
+
+
 def run_action(key, fn):
     t = ui()
     try:
@@ -331,7 +344,14 @@ def save_settings():
     return redirect(url_for('index', msg=ui()['saved']))
 
 
+def stop(*_):
+    """podman/docker stop: let a running TV conversation finish (they kill after 10 s), then quit."""
+    jobs.lock.acquire(timeout=8)
+    os._exit(0)
+
+
 def main():
+    signal.signal(signal.SIGTERM, stop)
     os.makedirs(config.DATA, exist_ok=True)
     jobs.log('Frame Daily Plan started')
     jobs.start_scheduler()

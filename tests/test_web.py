@@ -1,4 +1,7 @@
+import os
+
 import config
+import jobs
 import web
 
 
@@ -130,3 +133,11 @@ def test_station_connection_moves_to_shared_home_assistant():
     cfg = config.load()
     assert cfg['home_assistant'] == {'url': 'http://ha:8123', 'token': 't', 'todo_lists': []}
     assert cfg['station']['home_assistant']['temp_entity'] == 'sensor.t'
+
+
+def test_artwork_thumbnail():
+    os.makedirs(jobs.ART_CACHE, exist_ok=True)
+    with open(jobs.art_path('MY_F0123'), 'wb') as f:
+        f.write(b'jpeg')
+    assert client().get('/art/MY_F0123.jpg').data == b'jpeg'
+    assert client().get('/art/..%2Fconfig.jpg').status_code == 404

@@ -79,10 +79,27 @@ def connect(cfg):
     return a
 
 
+def art_path(content_id):
+    return os.path.join(ART_CACHE, f'{content_id}.jpg')
+
+
 def cached_artwork(cfg, state):
     if cfg.get('background') != 'artwork' or not state.get('restore_id'):
         return None
-    path = os.path.join(ART_CACHE, f"{state['restore_id']}.jpg")
+    path = art_path(state['restore_id'])
+    return path if os.path.exists(path) else None
+
+
+def cache_thumbnail(a, content_id):
+    """A small copy of the artwork: the plan background and the picture on the web page."""
+    path = art_path(content_id)
+    try:
+        data = tv.get_thumbnail(a, content_id)  # a small thumbnail is plenty for a blurred background
+        os.makedirs(ART_CACHE, exist_ok=True)
+        with open(path, 'wb') as f:
+            f.write(data)
+    except Exception as e:  # noqa: BLE001
+        log(f'No thumbnail for {content_id} ({e})')
     return path if os.path.exists(path) else None
 
 
@@ -90,15 +107,13 @@ def artwork_background(cfg, a, content_id):
     """The plan sits on the artwork it replaces, so the wall keeps its colours."""
     if cfg.get('background') != 'artwork' or not content_id:
         return None
-    path = os.path.join(ART_CACHE, f'{content_id}.jpg')
-    try:
-        data = tv.get_thumbnail(a, content_id)  # a small thumbnail is plenty for a blurred background
-        os.makedirs(ART_CACHE, exist_ok=True)
-        with open(path, 'wb') as f:
-            f.write(data)
-    except Exception as e:  # noqa: BLE001
-        log(f'No thumbnail for {content_id} ({e}), using the default background')
-    return path if os.path.exists(path) else None
+    return cache_thumbnail(a, content_id)
+
+
+def remember_artwork(a, state, content_id):
+    state['restore_id'] = content_id
+    if not os.path.exists(art_path(content_id)):
+        cache_thumbnail(a, content_id)
 
 
 def preview(cfg):
@@ -132,7 +147,12 @@ def put_temporary(cfg, make_image, what):
         a = connect(cfg)
         current = (a.get_current() or {}).get('content_id')
         if current and current not in state['plan_ids']:
-            state['restore_id'] = current  # the family's normal artwork
+            remember_artwork(a, state, current)  # the family's normal artwork
+            state['slideshow'] = tv.slideshow(a)
+            if state['slideshow']:
+                tv.stop_slideshow(a)  # or it would rotate the plan away; restarted with the artwork
+                save_state(state)
+                log('Slideshow paused for the plan')
         notes = make_image(a, state)
         with open(LAST_IMAGE, 'rb') as f:
             image = f.read()
@@ -190,10 +210,19 @@ def restore(cfg):
     with tv_turn():
         state = load_state()
         a = connect(cfg)
-        if state.get('restore_id'):
+        current = (a.get_current() or {}).get('content_id')
+        if current and state['plan_ids'] and current not in state['plan_ids']:
+            # Someone picked a picture while the plan was up: keep it, and come back to it next time.
+            remember_artwork(a, state, current)
+            log(f'Artwork {current} was picked on the TV, leaving it')
+        elif state.get('restore_id'):
             a.select_image(state['restore_id'], show=a.get_artmode() == 'on')
             log(f'Artwork {state["restore_id"]} restored')
-        delete_plans(a, state)
+        delete_plans(a, state)  # before the slideshow restarts, so no plan lands in its rotation
+        if state.get('slideshow'):
+            tv.start_slideshow(a, state['slideshow'])
+            log('Slideshow restarted')
+        state['slideshow'] = None
         state['restore_due'] = False
         save_state(state)
 

@@ -248,3 +248,72 @@ def test_demo_has_stand_in_holidays_and_radar(monkeypatch):
     assert data['radar']['time'] == '08:00'
     off = dict(CFG, weather={'radar': False})
     assert 'radar' not in plan_data.demo_radar(plan_data.demo(off, now, 'en'), off, 'en')
+
+
+class FakeFrame:
+    """Just enough of the art API for put_temporary and restore."""
+
+    def __init__(self, current, slideshow='off'):
+        self.current, self.slideshow, self.calls, self.n = current, slideshow, [], 0
+
+    def get_current(self):
+        return {'content_id': self.current}
+
+    def get_artmode(self):
+        return 'on'
+
+    def get_slideshow_status(self):
+        return {'value': self.slideshow, 'category_id': 'MY-C0004', 'type': 'slideshow'}
+
+    def set_slideshow_status(self, duration=0, type=True, category=2):
+        self.slideshow = str(duration) if duration else 'off'
+        self.calls.append(('slideshow', self.slideshow))
+
+    def _slideshow_request(self, action, fields):
+        self.slideshow = fields['value']
+        self.calls.append(('slideshow', fields))
+
+    def get_thumbnail(self, content_id):
+        return b'jpeg'
+
+    def upload(self, data, **kw):
+        self.n += 1
+        return f'MY_F09{self.n:02}'
+
+    def select_image(self, content_id, category=None, show=True):
+        self.current = content_id
+        self.calls.append(('select', content_id))
+
+    def delete_list(self, ids):
+        self.calls.append(('delete', list(ids)))
+
+
+def frame(monkeypatch, current, slideshow='off'):
+    if os.path.exists(jobs.STATE_FILE):
+        os.remove(jobs.STATE_FILE)
+    tv = FakeFrame(current, slideshow)
+    monkeypatch.setattr(jobs, 'connect', lambda cfg: tv)
+    return tv
+
+
+def test_slideshow_pauses_for_the_plan_and_comes_back(monkeypatch):
+    tv = frame(monkeypatch, 'MY_F0001', slideshow='15')
+    jobs.show_text(CFG, 'Hello')
+    state = jobs.load_state()
+    assert state['restore_id'] == 'MY_F0001' and tv.slideshow == 'off'
+    assert state['slideshow'] == {'value': '15', 'category_id': 'MY-C0004', 'type': 'slideshow'}
+    assert os.path.exists(jobs.art_path('MY_F0001'))  # thumbnail for the web page
+    jobs.restore(CFG)
+    assert tv.calls[-3:] == [('select', 'MY_F0001'), ('delete', ['MY_F0901']),
+                             ('slideshow', {'value': '15', 'category_id': 'MY-C0004', 'type': 'slideshow'})]
+    assert jobs.load_state()['slideshow'] is None
+
+
+def test_artwork_picked_during_the_plan_is_kept(monkeypatch):
+    tv = frame(monkeypatch, 'MY_F0001')
+    jobs.show_text(CFG, 'Hello')
+    tv.current = 'MY_F0002'  # someone chose another picture on the TV
+    jobs.restore(CFG)
+    assert ('select', 'MY_F0001') not in tv.calls and ('delete', ['MY_F0901']) in tv.calls
+    assert jobs.load_state()['restore_id'] == 'MY_F0002'
+    assert not any(c[0] == 'slideshow' for c in tv.calls)  # it was off, so it stays off

@@ -104,7 +104,8 @@ Use **Create preview** to see the plan without touching the TV, and **Show plan 
 ## How it behaves
 
 - At the start of each schedule's time window, the app remembers the current artwork, uploads a fresh plan and shows it. If the TV is in TV mode, the plan just waits.
-- At its end, it switches back to that artwork and deletes the plan.
+- At its end, it switches back to that artwork and deletes the plan. If someone picked a different picture while the plan was up, that picture stays and becomes the one to return to.
+- If the Frame's own slideshow is running, it is paused while the plan is up, so the plan isn't rotated away, and restarted afterwards with the same interval and folder.
 - Anything you show by hand *inside* that window disappears at its end. Anything you show *outside* it stays until **Back to artwork**.
 - If the TV is asleep or unreachable, the app retries every 2 minutes during the time window, so the plan appears soon after the TV wakes up.
 - Only images the app uploaded itself are ever deleted. Your photos and Samsung art are never touched.

@@ -24,6 +24,7 @@
   .msg { padding: 10px 14px; border-radius: 10px; background: var(--card); border-left: 4px solid var(--accent); margin-bottom: 18px; }
   .status b.ok { color: var(--ok); } .status b.bad { color: var(--bad); }
   img.preview { width: 100%; border-radius: 10px; border: 1px solid var(--line); display: block; }
+  img.art-thumb { height: 2.4em; vertical-align: middle; border-radius: 4px; border: 1px solid var(--line); margin: 0 .2em; }
   table { width: 100%; border-collapse: collapse; } td, th { padding: 6px 4px; text-align: left; vertical-align: top; } th { color: var(--soft); font-weight: 500; font-size: 14px; }
   td input[type=text] { min-width: 120px; }
   pre { margin: 0; font-size: 13px; white-space: pre-wrap; color: var(--soft); max-height: 320px; overflow: auto; }
@@ -75,7 +76,9 @@
     {% set active = cfg.schedules|selectattr('enabled')|list %}
     <p>{{ t.schedule }}: {% for s in active %}<b>{{ s.name }}</b> {{ s.start }}–{{ s.end }} {{ t.oclock }}
       ({% for i in s.days %}{{ t.day_names[i] }}{% if not loop.last %}, {% endif %}{% endfor %}){% if not loop.last %}; {% endif %}{% else %}<b>{{ t.off }}</b>{% endfor %}
-      · {{ t.last_shown }}: {{ state.shown_on or '–' }} · {{ t.restore_art }}: {{ state.restore_id or '–' }}</p>
+      · {{ t.last_shown }}: {{ state.shown_on or '–' }} · {{ t.restore_art }}:
+      {% if restore_thumb %}<a href="{{ url_for('art_thumbnail', content_id=state.restore_id) }}" target="_blank"><img class="art-thumb" src="{{ url_for('art_thumbnail', content_id=state.restore_id) }}" alt=""></a>{% endif %}
+      {{ state.restore_id or '–' }}{% if state.slideshow %} ({{ t.slideshow_resumes }}){% endif %}</p>
     <div class="row">
       <form method="post" action="{{ url_for('make_preview') }}"><button>{{ t.btn_preview }}</button></form>
       <form method="post" action="{{ url_for('show_now') }}"><button class="primary">{{ t.btn_show }}</button></form>
