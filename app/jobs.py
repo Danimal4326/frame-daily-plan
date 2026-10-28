@@ -116,10 +116,30 @@ def remember_artwork(a, state, content_id):
         cache_thumbnail(a, content_id)
 
 
+def preview_background(cfg):
+    """What a plan shown now would sit on: the TV's current picture (it changes with a
+    slideshow), the artwork to return to while a plan is up, the last known one if the TV
+    can't be asked. Only reads from the TV."""
+    state = load_state()
+    if cfg.get('background') != 'artwork':
+        return None
+    if cfg.get('tv_ip') and lock.acquire(timeout=5):  # a running upload wins; then the last known one will do
+        try:
+            a = connect(cfg)
+            current = (a.get_current() or {}).get('content_id')
+            if current and current not in state['plan_ids']:
+                return cache_thumbnail(a, current) or cached_artwork(cfg, state)
+        except Exception as e:  # noqa: BLE001
+            log(f'Preview: could not ask the TV ({e}), using the last known artwork')
+        finally:
+            lock.release()
+    return cached_artwork(cfg, state)
+
+
 def preview(cfg):
-    """Render without touching the TV (uses the last known artwork as background)."""
+    """Render without changing anything on the TV."""
     data = plan_data.build(cfg, now_local(cfg))
-    render.render(data, PREVIEW, cached_artwork(cfg, load_state()))
+    render.render(data, PREVIEW, preview_background(cfg))
     return data
 
 
@@ -187,7 +207,7 @@ def show_demo(cfg, lang='en', on_tv=True):
     """Made-up plan (no real data) for sharing; shown like a plan."""
     data = plan_data.demo_radar(plan_data.demo(cfg, now_local(cfg), lang), cfg, lang)
     if not on_tv:
-        render.render(data, PREVIEW, cached_artwork(cfg, load_state()))
+        render.render(data, PREVIEW, preview_background(cfg))
         return
 
     def make(a, state):

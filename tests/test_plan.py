@@ -317,3 +317,18 @@ def test_artwork_picked_during_the_plan_is_kept(monkeypatch):
     assert ('select', 'MY_F0001') not in tv.calls and ('delete', ['MY_F0901']) in tv.calls
     assert jobs.load_state()['restore_id'] == 'MY_F0002'
     assert not any(c[0] == 'slideshow' for c in tv.calls)  # it was off, so it stays off
+
+
+def test_preview_sits_on_the_current_picture(monkeypatch):
+    tv = frame(monkeypatch, 'MY_F0005')
+    cfg = dict(CFG, background='artwork')
+    used = []
+    monkeypatch.setattr(render, 'render', lambda data, out, bg=None: used.append(bg))
+    jobs.preview(cfg)
+    assert used[-1] == jobs.art_path('MY_F0005')  # what the slideshow shows now
+    jobs.show_text(cfg, 'Hello')  # a plan is up: the preview uses the artwork it returns to
+    jobs.preview(cfg)
+    assert tv.current == 'MY_F0901' and used[-1] == jobs.art_path('MY_F0005')
+    monkeypatch.setattr(jobs, 'connect', lambda cfg: (_ for _ in ()).throw(OSError('TV asleep')))
+    jobs.preview(cfg)
+    assert used[-1] == jobs.art_path('MY_F0005')
