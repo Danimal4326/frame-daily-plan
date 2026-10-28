@@ -1,5 +1,6 @@
 import datetime
 import os
+import time
 import zoneinfo
 
 import icalendar
@@ -332,3 +333,18 @@ def test_preview_sits_on_the_current_picture(monkeypatch):
     monkeypatch.setattr(jobs, 'connect', lambda cfg: (_ for _ in ()).throw(OSError('TV asleep')))
     jobs.preview(cfg)
     assert used[-1] == jobs.art_path('MY_F0005')
+
+
+def test_preview_does_not_wait_for_a_stuck_tv(monkeypatch):
+    frame(monkeypatch, 'MY_F0005')
+    cfg = dict(CFG, background='artwork')
+    jobs.show_text(cfg, 'Hello')  # remembers MY_F0005 and caches its thumbnail
+    monkeypatch.setattr(jobs, 'connect', lambda cfg: time.sleep(2))
+    monkeypatch.setattr(jobs, 'PREVIEW_WAIT', 0.2)
+    used = []
+    monkeypatch.setattr(render, 'render', lambda data, out, bg=None: used.append(bg))
+    start = time.monotonic()
+    jobs.preview(cfg)
+    assert time.monotonic() - start < 1.5 and used == [jobs.art_path('MY_F0005')]
+    with jobs.lock:  # the stuck TV call finished on its own and let go of the TV
+        pass

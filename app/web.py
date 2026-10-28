@@ -168,7 +168,7 @@ def health():
 def status():
     cfg = config.load()
     try:
-        s = tv.status(cfg['tv_ip'])
+        s = jobs.within(20, tv.status, cfg['tv_ip'])  # a stuck TV must not tie up the web server
         return {'ok': True, **s}
     except Exception as e:  # noqa: BLE001
         return {'ok': False, 'error': str(e)}
@@ -356,7 +356,7 @@ def main():
     jobs.log('Frame Daily Plan started')
     jobs.start_scheduler()
     stations.start_watcher()
-    serve(app, host='0.0.0.0', port=int(os.environ.get('PORT', '8765')), threads=4)
+    serve(app, host='0.0.0.0', port=int(os.environ.get('PORT', '8765')), threads=8)  # TV calls can be slow; keep room for the page and /health
 
 
 if __name__ == '__main__':

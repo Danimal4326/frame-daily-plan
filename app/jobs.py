@@ -1,5 +1,6 @@
 """The actions: preview, show the plan, bring the artwork back, and the daily scheduler."""
 import collections
+import concurrent.futures
 import contextlib
 import datetime
 import json
@@ -22,6 +23,7 @@ ART_CACHE = os.path.join(config.DATA, 'art')
 RETRY_AFTER = 2 * 60  # a sleeping TV (e.g. before anyone is in the room) is retried every 2 minutes
 
 LOCK_WAIT = 3 * 60  # a button waits this long for a running TV conversation, then gives up
+PREVIEW_WAIT = 20  # a preview asks the TV for its current picture this long, then uses the last known one
 
 lock = threading.Lock()  # one TV conversation at a time (scheduler and buttons)
 recent = collections.deque(maxlen=200)
@@ -116,6 +118,31 @@ def remember_artwork(a, state, content_id):
         cache_thumbnail(a, content_id)
 
 
+def within(seconds, fn, *args):
+    """fn(*args), but wait at most this long. A TV that stops answering can take minutes to
+    time out step by step; the page must not wait for it (fn finishes in the background)."""
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        return pool.submit(fn, *args).result(timeout=seconds)
+    except concurrent.futures.TimeoutError:
+        raise RuntimeError(f'the TV did not answer within {seconds} s') from None
+    finally:
+        pool.shutdown(wait=False)
+
+
+def current_thumbnail(cfg, state):
+    if not lock.acquire(timeout=5):
+        return None  # a running upload wins; the last known artwork will do
+    try:
+        a = connect(cfg)
+        current = (a.get_current() or {}).get('content_id')
+        if current and current not in state['plan_ids']:
+            return cache_thumbnail(a, current)
+        return None
+    finally:
+        lock.release()
+
+
 def preview_background(cfg):
     """What a plan shown now would sit on: the TV's current picture (it changes with a
     slideshow), the artwork to return to while a plan is up, the last known one if the TV
@@ -123,16 +150,13 @@ def preview_background(cfg):
     state = load_state()
     if cfg.get('background') != 'artwork':
         return None
-    if cfg.get('tv_ip') and lock.acquire(timeout=5):  # a running upload wins; then the last known one will do
+    if cfg.get('tv_ip'):
         try:
-            a = connect(cfg)
-            current = (a.get_current() or {}).get('content_id')
-            if current and current not in state['plan_ids']:
-                return cache_thumbnail(a, current) or cached_artwork(cfg, state)
+            path = within(PREVIEW_WAIT, current_thumbnail, cfg, state)
+            if path:
+                return path
         except Exception as e:  # noqa: BLE001
             log(f'Preview: could not ask the TV ({e}), using the last known artwork')
-        finally:
-            lock.release()
     return cached_artwork(cfg, state)
 
 
